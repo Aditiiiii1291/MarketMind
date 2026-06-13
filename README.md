@@ -10,6 +10,13 @@ This project is currently in progress. Real-time AI persona feedback is planned 
 - Phase 1: Dataset exploration and preprocessing workflow in progress
 - Phase 2: Not started
 
+## Documentation
+
+- [Product Requirements Document](PRD.md)
+- [Roadmap](ROADMAP.md)
+- [Project Setup Guide](PROJECT_SETUP.md)
+- [Data Folder Notes](data/README.md)
+
 ## Planned Features
 
 - Sentiment analysis
