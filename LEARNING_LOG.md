@@ -91,7 +91,7 @@ Phase 0 complete; Phase 1 dataset exploration and preprocessing workflow started
 
 - Start Phase 2: Text preprocessing.
 
-## Day 2 Planned
+## Day 2
 
 ### Date
 
@@ -103,27 +103,37 @@ Phase 2: Text preprocessing.
 
 ### What I learned
 
-- To be completed after Phase 2 work begins.
+- Learned that missing-looking values can appear as text, such as `"Nan"`, and need explicit cleanup.
+- Learned that final validation before saving is important for reliable processed datasets.
 
 ### What I implemented
 
-- Planned:
-  - Move cleaning logic from the notebook into `src/data_preprocessing.py`.
-  - Create reusable preprocessing functions.
-  - Generate a `cleaned_review` column.
-  - Save the processed dataset.
+- Implemented the data preprocessing pipeline in `src/data_preprocessing.py`.
+- Added reusable functions for loading raw data, standardizing columns, creating `full_review`, cleaning price/rating columns, cleaning review text, and saving the processed dataset.
+- Generated `data/processed/marketmind_clean_reviews.csv` locally.
 
 ### Errors / issues faced
 
-- To be completed.
+- After running the preprocessing script, `cleaned_review` still had 1 missing value.
+- The problematic row had `full_review = "Nan"` and `cleaned_review = NaN`.
 
 ### How I fixed them
 
-- To be completed.
+- Updated the final cleanup step to strip `full_review` and `cleaned_review`.
+- Treated `""`, `"nan"`, `"none"`, and `"null"` as invalid text values.
+- Replaced invalid values with `pd.NA`.
+- Dropped rows missing `product_name`, `rating`, `full_review`, `cleaned_review`, or `sentiment` before saving.
 
 ### Output generated
 
-- Planned processed dataset output.
+- Final processed dataset should contain these columns:
+  - `product_name`
+  - `clean_price`
+  - `rating`
+  - `full_review`
+  - `cleaned_review`
+  - `sentiment`
+- `cleaned_review` should have 0 missing values after rerunning the script.
 
 ### Git commit made
 
@@ -131,4 +141,4 @@ Phase 2: Text preprocessing.
 
 ### Next step
 
-- Begin implementing reusable text preprocessing logic in Phase 2.
+- Continue Phase 2 by preparing the cleaned text data for later sentiment modeling.
