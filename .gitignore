@@ -15,4 +15,5 @@ models/*
 
 .env
 .DS_Store
-.ipynb_checkpoints/
+.ipynb_checkpoints/LEARNING_LOG.md 
+LEARNING_LOG.md 
