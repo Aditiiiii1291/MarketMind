@@ -86,6 +86,25 @@ def save_model_artifacts(model, vectorizer):
     print(f"Saved vectorizer to: {VECTORIZER_OUTPUT_PATH}")
 
 
+def predict_sentiment(
+    review_text,
+    model_path=MODEL_OUTPUT_PATH,
+    vectorizer_path=VECTORIZER_OUTPUT_PATH,
+):
+    """Predict sentiment for one review using saved model artifacts."""
+    # Load the already-trained model and vectorizer from disk.
+    model = joblib.load(model_path)
+    vectorizer = joblib.load(vectorizer_path)
+
+    # The vectorizer expects a list-like input, even for one review.
+    review_tfidf = vectorizer.transform([review_text])
+
+    # model.predict returns a list/array, so return the first prediction.
+    predicted_sentiment = model.predict(review_tfidf)[0]
+
+    return predicted_sentiment
+
+
 if __name__ == "__main__":
     reviews_df = load_processed_data(PROCESSED_DATA_PATH)
     X, y = prepare_features_and_labels(reviews_df)
@@ -95,3 +114,16 @@ if __name__ == "__main__":
 
     evaluate_model(trained_model, trained_vectorizer, X_test, y_test)
     save_model_artifacts(trained_model, trained_vectorizer)
+
+    # Optional quick prediction examples using the saved model artifacts.
+    example_reviews = [
+        "this product is very good and worth the money",
+        "very bad product waste of money",
+        "okay product average quality",
+    ]
+
+    print("\nExample Predictions:")
+    for review in example_reviews:
+        sentiment = predict_sentiment(review)
+        print(f"Review: {review}")
+        print(f"Predicted sentiment: {sentiment}\n")
