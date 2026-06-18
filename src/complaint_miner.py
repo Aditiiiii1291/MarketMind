@@ -8,12 +8,31 @@ model training is performed here.
 from pathlib import Path
 
 import pandas as pd
-from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import CountVectorizer, ENGLISH_STOP_WORDS
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT_PATH = PROJECT_ROOT / "data" / "processed" / "marketmind_clean_reviews.csv"
 DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "reports" / "top_complaints.csv"
+NEGATION_WORDS = {"no", "not", "nor", "never", "without"}
+NOISY_WORDS = {
+    "product",
+    "products",
+    "item",
+    "items",
+    "buy",
+    "purchase",
+    "dont",
+    "don",
+    "really",
+    "very",
+    "also",
+    "one",
+    "use",
+    "used",
+    "got",
+    "get",
+}
 
 
 def load_processed_data(file_path):
@@ -44,8 +63,19 @@ def get_negative_reviews(df):
     return negative_reviews
 
 
+def get_custom_stop_words():
+    """Build stop words that preserve complaint negation phrases."""
+    custom_stop_words = set(ENGLISH_STOP_WORDS)
+
+    # Keep negation words so phrases like "not working" stay meaningful.
+    custom_stop_words = custom_stop_words - NEGATION_WORDS
+    custom_stop_words.update(NOISY_WORDS)
+
+    return sorted(custom_stop_words)
+
+
 def extract_top_complaints(negative_reviews, top_n=20):
-    """Extract the most frequent complaint words and phrases.
+    """Extract the most frequent complaint bigrams.
 
     Args:
         negative_reviews: DataFrame containing negative reviews.
@@ -60,10 +90,14 @@ def extract_top_complaints(negative_reviews, top_n=20):
     review_text = negative_reviews["cleaned_review"].astype(str)
 
     vectorizer = CountVectorizer(
-        stop_words="english",
-        ngram_range=(1, 2),
+        stop_words=get_custom_stop_words(),
+        ngram_range=(2, 2),
+        min_df=5,
     )
-    term_counts = vectorizer.fit_transform(review_text)
+    try:
+        term_counts = vectorizer.fit_transform(review_text)
+    except ValueError:
+        return pd.DataFrame(columns=["complaint_phrase", "frequency"])
 
     complaint_counts = term_counts.sum(axis=0).A1
     complaint_phrases = vectorizer.get_feature_names_out()
