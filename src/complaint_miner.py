@@ -5,6 +5,7 @@ It is intentionally simple for Phase 4A: no topic modeling, clustering, or
 model training is performed here.
 """
 
+import argparse
 from pathlib import Path
 
 import pandas as pd
@@ -62,6 +63,86 @@ def load_processed_data(file_path):
         A pandas DataFrame containing the processed reviews.
     """
     return pd.read_csv(file_path)
+
+
+def normalize_product_name(product_name):
+    """Normalize product names for simple matching.
+
+    Args:
+        product_name: Product name value from a DataFrame or user input.
+
+    Returns:
+        A lower-case product name with extra spaces removed.
+    """
+    if pd.isna(product_name):
+        return ""
+
+    return " ".join(str(product_name).lower().split())
+
+
+def list_top_products(df, top_n=10):
+    """List products with the highest number of reviews.
+
+    Args:
+        df: DataFrame with a product_name column.
+        top_n: Number of products to return.
+
+    Returns:
+        A DataFrame with product_name and review_count columns.
+    """
+    product_names = df["product_name"].dropna().astype(str).str.strip()
+    product_names = product_names[product_names != ""]
+
+    top_products_df = (
+        product_names.value_counts()
+        .rename_axis("product_name")
+        .reset_index(name="review_count")
+        .head(top_n)
+    )
+
+    return top_products_df
+
+
+def get_product_reviews(df, product_name):
+    """Return reviews for one selected product.
+
+    Matching is case-insensitive and ignores extra spaces.
+
+    Args:
+        df: DataFrame with a product_name column.
+        product_name: Product name selected by the user.
+
+    Returns:
+        A DataFrame containing reviews for the selected product.
+    """
+    selected_product = normalize_product_name(product_name)
+
+    if selected_product == "":
+        return df.iloc[0:0].copy()
+
+    normalized_product_names = df["product_name"].apply(normalize_product_name)
+    matching_reviews = df[normalized_product_names == selected_product].copy()
+
+    if matching_reviews.empty:
+        # Some product names contain hidden encoding text, so partial matching
+        # lets users search by the clean visible part of the product title.
+        partial_matches = normalized_product_names.apply(
+            lambda product: selected_product in product
+        )
+        matching_reviews = df[partial_matches].copy()
+
+        if not matching_reviews.empty:
+            print("Matched product names:")
+            matched_product_names = matching_reviews["product_name"].dropna().unique()
+            for matched_product_name in matched_product_names:
+                display_product_name = (
+                    str(matched_product_name)
+                    .encode("ascii", errors="replace")
+                    .decode("ascii")
+                )
+                print(f"- {display_product_name}")
+
+    return matching_reviews
 
 
 def get_negative_reviews(df):
@@ -218,21 +299,96 @@ def save_category_summary(category_summary_df, output_path):
     category_summary_df.to_csv(output_path, index=False)
 
 
+def analyze_product_complaints(df, product_name, top_n=15):
+    """Run complaint mining for one selected product.
+
+    Args:
+        df: DataFrame containing all processed reviews.
+        product_name: Product name selected by the user.
+        top_n: Number of complaint phrases to return.
+
+    Returns:
+        product_reviews, negative_product_reviews, categorized_complaints,
+        and category_summary DataFrames.
+    """
+    product_reviews = get_product_reviews(df, product_name)
+    negative_product_reviews = get_negative_reviews(product_reviews)
+    top_complaints = extract_top_complaints(negative_product_reviews, top_n=top_n)
+    categorized_complaints = add_complaint_categories(top_complaints)
+    category_summary = build_category_summary(categorized_complaints)
+
+    return (
+        product_reviews,
+        negative_product_reviews,
+        categorized_complaints,
+        category_summary,
+    )
+
+
+def parse_args():
+    """Parse command line arguments for complaint analysis."""
+    parser = argparse.ArgumentParser(
+        description="Mine overall or product-specific complaint phrases."
+    )
+    parser.add_argument(
+        "--product",
+        help="Optional exact product name to analyze.",
+    )
+
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
+    args = parse_args()
     reviews_df = load_processed_data(DEFAULT_INPUT_PATH)
-    negative_reviews_df = get_negative_reviews(reviews_df)
-    top_complaints_df = extract_top_complaints(negative_reviews_df, top_n=20)
-    categorized_complaints_df = add_complaint_categories(top_complaints_df)
-    category_summary_df = build_category_summary(categorized_complaints_df)
 
-    print("Categorized complaint phrases:")
-    print(categorized_complaints_df)
+    if args.product:
+        (
+            product_reviews_df,
+            negative_product_reviews_df,
+            categorized_complaints_df,
+            category_summary_df,
+        ) = analyze_product_complaints(reviews_df, args.product, top_n=15)
 
-    print("\nComplaint category summary:")
-    print(category_summary_df)
+        if product_reviews_df.empty:
+            print(f'No reviews found for product: "{args.product}"')
+        else:
+            print(f'Product: "{args.product}"')
+            print(f"Total reviews: {len(product_reviews_df)}")
+            print(f"Negative reviews: {len(negative_product_reviews_df)}")
 
-    save_complaint_report(categorized_complaints_df, DEFAULT_OUTPUT_PATH)
-    save_category_summary(category_summary_df, DEFAULT_CATEGORY_SUMMARY_PATH)
+            if negative_product_reviews_df.empty:
+                print("\nNo negative reviews found for this product.")
+            elif categorized_complaints_df.empty:
+                print("\nNo usable complaint phrases found for this product.")
+            else:
+                print("\nTop categorized complaint phrases for this product:")
+                print(categorized_complaints_df)
 
-    print(f"\nComplaint report saved to: {DEFAULT_OUTPUT_PATH}")
-    print(f"Complaint category summary saved to: {DEFAULT_CATEGORY_SUMMARY_PATH}")
+                print("\nProduct complaint category summary:")
+                print(category_summary_df)
+    else:
+        top_products_df = list_top_products(reviews_df, top_n=10)
+
+        print("Top 10 products by review count:")
+        print(top_products_df)
+
+        negative_reviews_df = get_negative_reviews(reviews_df)
+        top_complaints_df = extract_top_complaints(negative_reviews_df, top_n=20)
+        categorized_complaints_df = add_complaint_categories(top_complaints_df)
+        category_summary_df = build_category_summary(categorized_complaints_df)
+
+        if categorized_complaints_df.empty:
+            print("\nNo usable complaint phrases found for overall analysis.")
+        else:
+            print("\nCategorized complaint phrases:")
+            print(categorized_complaints_df)
+
+            print("\nComplaint category summary:")
+            print(category_summary_df)
+
+        save_complaint_report(categorized_complaints_df, DEFAULT_OUTPUT_PATH)
+        save_category_summary(category_summary_df, DEFAULT_CATEGORY_SUMMARY_PATH)
+
+        print(f"\nComplaint report saved to: {DEFAULT_OUTPUT_PATH}")
+        print(f"Complaint category summary saved to: {DEFAULT_CATEGORY_SUMMARY_PATH}")
