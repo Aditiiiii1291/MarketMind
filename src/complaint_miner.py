@@ -14,6 +14,9 @@ from sklearn.feature_extraction.text import CountVectorizer, ENGLISH_STOP_WORDS
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT_PATH = PROJECT_ROOT / "data" / "processed" / "marketmind_clean_reviews.csv"
 DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "reports" / "top_complaints.csv"
+DEFAULT_CATEGORY_SUMMARY_PATH = (
+    PROJECT_ROOT / "reports" / "complaint_category_summary.csv"
+)
 NEGATION_WORDS = {"no", "not", "nor", "never", "without"}
 NOISY_WORDS = {
     "product",
@@ -32,6 +35,20 @@ NOISY_WORDS = {
     "used",
     "got",
     "get",
+}
+COMPLAINT_CATEGORY_KEYWORDS = {
+    "Quality": ["quality", "rubbish", "poor", "defective", "damaged"],
+    "Value for Money": ["money", "price", "expensive", "costly", "worth"],
+    "Functionality": ["working", "work", "charger", "battery", "broken", "machine"],
+    "Expectation Mismatch": ["expect", "expected", "meet", "better", "different"],
+    "Overall Dissatisfaction": [
+        "bad",
+        "worst",
+        "disappointed",
+        "recommended",
+        "useless",
+        "good",
+    ],
 }
 
 
@@ -121,7 +138,7 @@ def save_complaint_report(complaints_df, output_path):
     """Save the complaint mining report as a CSV file.
 
     Args:
-        complaints_df: DataFrame returned by extract_top_complaints.
+        complaints_df: DataFrame containing complaint phrases and frequencies.
         output_path: Destination path for the report CSV.
     """
     output_path = Path(output_path)
@@ -129,12 +146,93 @@ def save_complaint_report(complaints_df, output_path):
     complaints_df.to_csv(output_path, index=False)
 
 
+def categorize_complaint_phrase(phrase):
+    """Convert one complaint phrase into a business-friendly category.
+
+    Args:
+        phrase: Complaint phrase such as "bad quality" or "not working".
+
+    Returns:
+        A complaint category name.
+    """
+    phrase_text = str(phrase).lower()
+
+    # Category order matters: "bad quality" should be Quality, not Overall.
+    for category, keywords in COMPLAINT_CATEGORY_KEYWORDS.items():
+        for keyword in keywords:
+            if keyword in phrase_text:
+                return category
+
+    return "Other"
+
+
+def add_complaint_categories(complaints_df):
+    """Add a category column to the complaint phrases DataFrame.
+
+    Args:
+        complaints_df: DataFrame with a complaint_phrase column.
+
+    Returns:
+        A copy of the DataFrame with a new category column.
+    """
+    categorized_df = complaints_df.copy()
+    categorized_df["category"] = categorized_df["complaint_phrase"].apply(
+        categorize_complaint_phrase
+    )
+
+    return categorized_df
+
+
+def build_category_summary(categorized_complaints_df):
+    """Summarize complaint frequency by business-friendly category.
+
+    Args:
+        categorized_complaints_df: DataFrame with category and frequency columns.
+
+    Returns:
+        A DataFrame with category and total_frequency columns.
+    """
+    if categorized_complaints_df.empty:
+        return pd.DataFrame(columns=["category", "total_frequency"])
+
+    category_summary_df = (
+        categorized_complaints_df.groupby("category", as_index=False)["frequency"]
+        .sum()
+        .rename(columns={"frequency": "total_frequency"})
+        .sort_values(by="total_frequency", ascending=False)
+        .reset_index(drop=True)
+    )
+
+    return category_summary_df
+
+
+def save_category_summary(category_summary_df, output_path):
+    """Save the complaint category summary as a CSV file.
+
+    Args:
+        category_summary_df: DataFrame returned by build_category_summary.
+        output_path: Destination path for the summary CSV.
+    """
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    category_summary_df.to_csv(output_path, index=False)
+
+
 if __name__ == "__main__":
     reviews_df = load_processed_data(DEFAULT_INPUT_PATH)
     negative_reviews_df = get_negative_reviews(reviews_df)
     top_complaints_df = extract_top_complaints(negative_reviews_df, top_n=20)
+    categorized_complaints_df = add_complaint_categories(top_complaints_df)
+    category_summary_df = build_category_summary(categorized_complaints_df)
 
-    print(top_complaints_df)
+    print("Categorized complaint phrases:")
+    print(categorized_complaints_df)
 
-    save_complaint_report(top_complaints_df, DEFAULT_OUTPUT_PATH)
+    print("\nComplaint category summary:")
+    print(category_summary_df)
+
+    save_complaint_report(categorized_complaints_df, DEFAULT_OUTPUT_PATH)
+    save_category_summary(category_summary_df, DEFAULT_CATEGORY_SUMMARY_PATH)
+
     print(f"\nComplaint report saved to: {DEFAULT_OUTPUT_PATH}")
+    print(f"Complaint category summary saved to: {DEFAULT_CATEGORY_SUMMARY_PATH}")
