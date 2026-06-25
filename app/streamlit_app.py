@@ -108,8 +108,9 @@ def show_concept_simulation_result(result):
     summary_columns[2].metric("Launch Label", result["launch_label"])
 
     st.info(
-        "These are data-backed estimates from similar historical review patterns, "
-        "not real customer feedback or guaranteed market demand."
+        "Persona responses are simulated, data-backed estimates based on similar "
+        "historical review patterns. They are not real customer feedback or "
+        "guaranteed market demand."
     )
 
     st.subheader("Persona Feedback Simulation")
@@ -125,11 +126,15 @@ def show_concept_simulation_result(result):
             persona_columns[1].metric("Confidence", persona_row["confidence"])
             persona_columns[2].metric(
                 "Evidence Reviews",
-                persona_row["review_count_used"],
+                persona_row.get(
+                    "evidence_review_count",
+                    persona_row["review_count_used"],
+                ),
             )
 
             st.write(f"Likely concern: **{persona_row['likely_concern']}**")
-            st.write(f"Simulated reaction: {persona_row['simulated_reaction']}")
+            st.markdown("**Simulated Persona Response**")
+            st.write(persona_row["persona_response"])
 
     st.subheader("Launch Recommendations")
     for recommendation in result["recommendations"]:

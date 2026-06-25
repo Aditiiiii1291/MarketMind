@@ -46,6 +46,21 @@ SIMULATION_NOTE = (
     "Data-backed estimate from similar historical review patterns; not real "
     "customer feedback or guaranteed market demand."
 )
+CONCERN_LANGUAGE = {
+    "Functionality": "reliability, battery, charging, durability, performance, and maintenance",
+    "Value for Money": "price, affordability, worth, and comparison with alternatives",
+    "Quality": "build quality, material, durability, and finish",
+    "Expectation Mismatch": (
+        "clarity of features, realistic product claims, and whether it delivers "
+        "what is promised"
+    ),
+    "Overall Dissatisfaction": (
+        "trust, proof, reviews, after-sales support, and customer confidence"
+    ),
+    "No major complaint pattern found": (
+        "whether the useful parts are clearly proven by similar review patterns"
+    ),
+}
 
 
 def resolve_project_path(file_path):
@@ -89,6 +104,53 @@ def build_concept_text(product_name, category, price, features, description):
             clean_fields.append(field_text)
 
     return " ".join(clean_fields)
+
+
+def choose_concept_detail(product_name, category, features, description):
+    """Pick one real user-entered product detail for persona responses."""
+    clean_features = clean_text_field(features)
+    if clean_features:
+        feature_parts = [
+            clean_text_field(feature)
+            for feature in clean_features.replace(";", ",").split(",")
+        ]
+        for feature in feature_parts:
+            if feature:
+                return feature
+
+    for value in [description, product_name, category]:
+        clean_value = clean_text_field(value)
+        if clean_value:
+            return clean_value
+
+    return "this product concept"
+
+
+def get_concern_detail(likely_concern):
+    """Convert a broad concern category into more specific language."""
+    return CONCERN_LANGUAGE.get(
+        str(likely_concern),
+        "risk, proof, value, and product consistency",
+    )
+
+
+def get_rating_stance(simulated_rating):
+    """Return the response tone and final stance for a simulated rating."""
+    if simulated_rating < 2.5:
+        return {
+            "tone": "skeptical",
+            "stance": "I would avoid it for now.",
+        }
+    if simulated_rating <= 3.5:
+        return {
+            "tone": "mixed",
+            "stance": "I would wait for more proof before buying.",
+        }
+
+    return {
+        "tone": "positive",
+        "stance": "I would consider buying it.",
+    }
 
 
 def prepare_persona_reviews(df):
@@ -217,6 +279,7 @@ def calculate_persona_simulation(similar_reviews_df, persona_profiles_df):
                 "cluster": cluster_id,
                 "persona_name": persona_row["persona_name"],
                 "review_count_used": review_count_used,
+                "evidence_review_count": review_count_used,
                 "evidence_average_rating": (
                     round(float(evidence_average_rating), 2)
                     if not pd.isna(evidence_average_rating)
@@ -237,26 +300,137 @@ def calculate_persona_simulation(similar_reviews_df, persona_profiles_df):
     return pd.DataFrame(simulation_rows)
 
 
-def generate_persona_reaction(persona_row):
-    """Generate a short rule-based persona reaction without real quotes."""
+def generate_persona_reaction(
+    persona_row,
+    product_name,
+    category,
+    price,
+    features,
+    description,
+):
+    """Generate a natural first-person simulated persona response.
+
+    The text is deterministic and rule-based. It does not use an LLM, invent
+    real customer quotes, or claim the product was tested.
+    """
     persona_name = str(persona_row["persona_name"])
     simulated_rating = float(persona_row["simulated_rating"])
-    likely_concern = str(persona_row["likely_concern"]).lower()
+    likely_concern = str(persona_row["likely_concern"])
+    confidence = str(persona_row["confidence"]).lower()
+    evidence_count = int(persona_row["review_count_used"])
+    clean_product_name = clean_text_field(product_name) or "this concept"
+    clean_category = clean_text_field(category)
+    clean_price = clean_text_field(price)
+    concept_detail = choose_concept_detail(
+        product_name,
+        category,
+        features,
+        description,
+    )
+    concern_detail = get_concern_detail(likely_concern)
+    rating_stance = get_rating_stance(simulated_rating)
+    tone = rating_stance["tone"]
+    stance = rating_stance["stance"]
+    price_sentence = (
+        f" The listed price of {clean_price} would affect how I judge value."
+        if clean_price
+        else ""
+    )
+    category_phrase = f" in {clean_category}" if clean_category else ""
+    evidence_phrase = (
+        f"based on {evidence_count} similar historical reviews"
+        if evidence_count > 0
+        else "with limited similar historical review evidence"
+    )
 
-    if simulated_rating >= 4:
+    if "Critical Reviewers" in persona_name:
+        if tone == "skeptical":
+            return (
+                f"I would be cautious about {clean_product_name}{category_phrase}, "
+                f"even though {concept_detail} sounds useful.{price_sentence} "
+                f"My concern is around {concern_detail}, especially because this is a "
+                f"simulated response {evidence_phrase} with {confidence} confidence. "
+                "Before buying, I would need clearer proof that the product can "
+                f"deliver reliably and justify the risk. {stance}"
+            )
+        if tone == "mixed":
+            return (
+                f"This sounds useful, but I would compare {clean_product_name} "
+                f"carefully before deciding because {concept_detail} needs to feel "
+                f"reliable in everyday use.{price_sentence} The main concern from "
+                f"similar review patterns is around {concern_detail}, and this simulated "
+                f"view has {confidence} confidence from {evidence_count} evidence "
+                f"reviews. I would want proof, warranty clarity, and stronger value. "
+                f"{stance}"
+            )
+
         return (
-            f"{persona_name} may respond positively, while still monitoring "
-            f"{likely_concern} in similar feedback."
+            f"I like the idea of {clean_product_name}{category_phrase}, especially "
+            f"the focus on {concept_detail}, but I would still check the risk areas."
+            f"{price_sentence} Similar review patterns point to {concern_detail}, so "
+            f"this simulated response stays practical despite the stronger rating "
+            f"and {confidence} confidence. If the proof and value are clear, the "
+            f"concept becomes easier to trust. {stance}"
         )
-    if simulated_rating >= 3:
+
+    if "Highly Satisfied Buyers" in persona_name:
+        if tone == "skeptical":
+            return (
+                f"I am interested in the idea of {clean_product_name}, but the "
+                f"current simulated signal makes me hesitate. {concept_detail} could "
+                f"be convenient{category_phrase}.{price_sentence} Still, similar review "
+                f"patterns raise concerns around {concern_detail}, and the response is based on "
+                f"{evidence_count} evidence reviews with {confidence} confidence. "
+                "I would need clearer benefits and reassurance before treating it "
+                f"as a good purchase. {stance}"
+            )
+        if tone == "mixed":
+            return (
+                f"This sounds useful, but I would want to see whether "
+                f"{clean_product_name} makes daily use easier in a real buying "
+                f"decision. The detail that stands out is {concept_detail}."
+                f"{price_sentence} Based on similar review patterns, {concern_detail} "
+                f"still matters, and this simulated response has {confidence} "
+                f"confidence from {evidence_count} evidence reviews. I would compare "
+                f"options first. {stance}"
+            )
+
         return (
-            f"{persona_name} may be open but cautious because {likely_concern} "
-            "appears in related historical feedback."
+            f"I like {clean_product_name} because {concept_detail} sounds practical "
+            f"and easy to understand{category_phrase}.{price_sentence} Based on similar "
+            f"historical review patterns, I would still watch {concern_detail}, but "
+            f"the simulated rating suggests this segment may see enough convenience "
+            f"and value to stay interested. With {confidence} confidence from "
+            f"{evidence_count} evidence reviews, the idea feels worth considering. "
+            f"{stance}"
+        )
+
+    if tone == "skeptical":
+        return (
+            f"I would be cautious about {clean_product_name} because the concept "
+            f"has some appeal, but {concept_detail} alone may not answer the main "
+            f"trade-offs.{price_sentence} Similar historical review patterns point to "
+            f"{concern_detail}, and this simulated response has {confidence} "
+            f"confidence from {evidence_count} evidence reviews. I would need "
+            f"clearer proof of usefulness, value, and consistency. {stance}"
+        )
+    if tone == "mixed":
+        return (
+            f"This sounds useful, but I would weigh the benefits of {concept_detail} "
+            f"against the practical trade-offs for {clean_product_name}."
+            f"{price_sentence} Based on similar review patterns, the main concern "
+            f"is around {concern_detail}, and this simulated view has {confidence} confidence "
+            f"from {evidence_count} evidence reviews. I would compare alternatives "
+            f"and look for clearer proof before deciding. {stance}"
         )
 
     return (
-        f"{persona_name} is likely to be cautious because {likely_concern} is a "
-        "recurring concern in similar feedback."
+        f"I like the direction of {clean_product_name}, especially {concept_detail}, "
+        f"because it gives the concept a clear use case{category_phrase}."
+        f"{price_sentence} This simulated response is based on similar historical "
+        f"review patterns with {confidence} confidence from {evidence_count} "
+        f"evidence reviews. I would still check {concern_detail}, but the balance "
+        f"of benefits and risks looks reasonable. {stance}"
     )
 
 
@@ -342,10 +516,20 @@ def simulate_product_concept(product_name, category, price, features, descriptio
         similar_reviews_df,
         persona_profiles_df,
     )
-    persona_simulations_df["simulated_reaction"] = persona_simulations_df.apply(
-        generate_persona_reaction,
+    persona_simulations_df["persona_response"] = persona_simulations_df.apply(
+        lambda persona_row: generate_persona_reaction(
+            persona_row,
+            product_name=product_name,
+            category=category,
+            price=price,
+            features=features,
+            description=description,
+        ),
         axis=1,
     )
+    persona_simulations_df["simulated_reaction"] = persona_simulations_df[
+        "persona_response"
+    ]
     launch_score, launch_label = calculate_launch_readiness(persona_simulations_df)
     recommendations = generate_launch_recommendations(
         persona_simulations_df,
@@ -385,10 +569,11 @@ def save_concept_simulation_report(result, output_path):
                 "similar_review_count": result["similar_review_count"],
                 "persona_name": persona_row["persona_name"],
                 "review_count_used": persona_row["review_count_used"],
+                "evidence_review_count": persona_row["evidence_review_count"],
                 "simulated_rating": persona_row["simulated_rating"],
                 "likely_concern": persona_row["likely_concern"],
                 "confidence": persona_row["confidence"],
-                "simulated_reaction": persona_row["simulated_reaction"],
+                "persona_response": persona_row["persona_response"],
                 "simulation_note": result["simulation_note"],
             }
         )
@@ -445,7 +630,7 @@ def print_simulation_result(result):
         "simulated_rating",
         "likely_concern",
         "confidence",
-        "simulated_reaction",
+        "persona_response",
     ]
     print(result["persona_simulations"][display_columns])
 
