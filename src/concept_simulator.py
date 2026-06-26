@@ -7,6 +7,7 @@ patterns, not real customer quotes, guaranteed demand, or a launch decision.
 
 import argparse
 from pathlib import Path
+import re
 
 import joblib
 import pandas as pd
@@ -47,20 +48,41 @@ SIMULATION_NOTE = (
     "customer feedback or guaranteed market demand."
 )
 CONCERN_LANGUAGE = {
-    "Functionality": "reliability, battery, charging, durability, performance, and maintenance",
-    "Value for Money": "price, affordability, worth, and comparison with alternatives",
-    "Quality": "build quality, material, durability, and finish",
+    "Functionality": "battery life, charging reliability, water resistance, durability, maintenance, and everyday performance",
+    "Value for Money": "price justification, benefits versus cost, and comparison with cheaper alternatives",
+    "Quality": "build quality, long-term durability, materials, and finish",
     "Expectation Mismatch": (
-        "clarity of features, realistic product claims, and whether it delivers "
-        "what is promised"
+        "feature promises, listing clarity, and whether real use matches expectations"
     ),
     "Overall Dissatisfaction": (
-        "trust, proof, reviews, after-sales support, and customer confidence"
+        "trust, proof of reliability, warranty, after-sales support, and customer confidence"
     ),
     "No major complaint pattern found": (
-        "whether the useful parts are clearly proven by similar review patterns"
+        "value confirmation, ease of use, and practical reliability"
     ),
 }
+VAGUE_FEATURE_WORDS = {
+    "feature",
+    "good",
+    "product",
+    "quality",
+    "smart",
+    "sturdy",
+}
+FORBIDDEN_PERSONA_RESPONSE_PHRASES = (
+    "simulation",
+    "simulated",
+    "historical review",
+    "similar review",
+    "confidence",
+    "evidence",
+    "dataset",
+    "ml",
+    "rating",
+    "persona",
+    "the listed price",
+    "would affect how i judge value",
+)
 
 
 def resolve_project_path(file_path):
@@ -106,24 +128,182 @@ def build_concept_text(product_name, category, price, features, description):
     return " ".join(clean_fields)
 
 
-def choose_concept_detail(product_name, category, features, description):
-    """Pick one real user-entered product detail for persona responses."""
+def get_short_description_phrase(description):
+    """Return a compact fallback phrase from the product description."""
+    clean_description = clean_text_field(description)
+    if clean_description == "":
+        return "the main promise"
+
+    sentence = re.split(r"[.!?]", clean_description, maxsplit=1)[0]
+    candidate = sentence
+    with_match = re.search(r"\bwith\b", sentence, flags=re.IGNORECASE)
+    if with_match:
+        candidate = sentence[with_match.end() :].strip()
+        candidate = re.split(
+            r"\bfor\b|\bthat\b|\bto\b|,",
+            candidate,
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )[0].strip()
+
+    candidate = re.sub(r"^(a|an|the)\s+", "", candidate, flags=re.IGNORECASE)
+    if candidate == "":
+        candidate = sentence
+
+    words = candidate.split()
+    if len(words) <= 8:
+        return candidate
+
+    return " ".join(words[:8])
+
+
+def select_meaningful_features(features, description):
+    """Choose one or two concrete product features for natural responses."""
     clean_features = clean_text_field(features)
+    feature_parts = []
+
     if clean_features:
         feature_parts = [
             clean_text_field(feature)
-            for feature in clean_features.replace(";", ",").split(",")
+            for feature in clean_features.split(",")
         ]
-        for feature in feature_parts:
-            if feature:
-                return feature
+        feature_parts = [feature for feature in feature_parts if feature]
 
-    for value in [description, product_name, category]:
-        clean_value = clean_text_field(value)
-        if clean_value:
-            return clean_value
+    meaningful_features = [
+        feature
+        for feature in feature_parts
+        if feature.lower() not in VAGUE_FEATURE_WORDS
+    ]
 
-    return "this product concept"
+    if meaningful_features:
+        return meaningful_features[:3]
+    if clean_text_field(description):
+        return [get_short_description_phrase(description)]
+    if feature_parts:
+        return feature_parts[:3]
+
+    return [get_short_description_phrase(description)]
+
+
+def normalize_feature_for_response(feature):
+    """Clean feature text for natural response templates."""
+    clean_feature = clean_text_field(feature)
+    lower_feature = clean_feature.lower()
+
+    if "usb" in lower_feature and "charging" in lower_feature:
+        return "USB charging"
+    if "temperature" in lower_feature and "display" in lower_feature:
+        return "temperature display"
+    if "hydration" in lower_feature and "reminder" in lower_feature:
+        return "hydration reminders"
+
+    return re.sub(r"^(a|an|the)\s+", "", clean_feature, flags=re.IGNORECASE)
+
+
+def format_feature_phrase(selected_features):
+    """Join selected feature phrases into readable first-person speech."""
+    selected_features = [
+        normalize_feature_for_response(feature)
+        for feature in selected_features
+    ]
+
+    if len(selected_features) >= 2:
+        return f"{selected_features[0]} and {selected_features[1]}"
+
+    return selected_features[0]
+
+
+def format_feature_subject(selected_features):
+    """Make selected features work as a sentence subject."""
+    if len(selected_features) >= 2:
+        return f"The combination of {format_feature_phrase(selected_features)}"
+
+    return normalize_feature_for_response(selected_features[0])
+
+
+def get_feature_by_keyword(selected_features, keyword):
+    """Find a selected feature by keyword without changing determinism."""
+    for feature in selected_features:
+        clean_feature = normalize_feature_for_response(feature)
+        if keyword.lower() in clean_feature.lower():
+            return clean_feature
+
+    return ""
+
+
+def get_feature_or_default(selected_features, index, default):
+    """Return a selected feature by position, falling back to useful wording."""
+    if len(selected_features) > index:
+        return normalize_feature_for_response(selected_features[index])
+
+    return default
+
+
+def get_voice_features(selected_features, voice):
+    """Choose feature mentions that fit the persona voice."""
+    temperature = get_feature_by_keyword(selected_features, "temperature")
+    charging = get_feature_by_keyword(selected_features, "charging")
+    reminders = get_feature_by_keyword(selected_features, "reminder")
+
+    if voice == "critical":
+        first_feature = temperature or get_feature_or_default(
+            selected_features,
+            0,
+            "the main feature",
+        )
+        second_feature = charging or get_feature_or_default(
+            selected_features,
+            1,
+            "daily reliability",
+        )
+        support_feature = reminders or get_feature_or_default(
+            selected_features,
+            2,
+            first_feature,
+        )
+        return first_feature, second_feature, support_feature
+
+    if voice == "positive":
+        first_feature = reminders or get_feature_or_default(
+            selected_features,
+            0,
+            "the practical feature",
+        )
+        second_feature = temperature or get_feature_or_default(
+            selected_features,
+            1,
+            "simple daily use",
+        )
+        return first_feature, second_feature
+
+    first_feature = temperature or get_feature_or_default(
+        selected_features,
+        0,
+        "the practical feature",
+    )
+    second_feature = reminders or get_feature_or_default(
+        selected_features,
+        1,
+        "everyday usefulness",
+    )
+    return first_feature, second_feature
+
+
+def format_price_for_response(price):
+    """Format user-entered price naturally for persona responses."""
+    clean_price = clean_text_field(price)
+    if clean_price == "":
+        return ""
+
+    if clean_price.startswith("\u20b9"):
+        return clean_price
+
+    digit_match = re.search(r"\d[\d,]*(?:\.\d+)?", clean_price)
+    if digit_match:
+        amount = digit_match.group(0).replace(",", "")
+        return f"\u20b9{amount}"
+
+    return f"\u20b9{clean_price}"
 
 
 def get_concern_detail(likely_concern):
@@ -151,6 +331,46 @@ def get_rating_stance(simulated_rating):
         "tone": "positive",
         "stance": "I would consider buying it.",
     }
+
+
+def get_product_noun(product_name):
+    """Use the product name's final word in adaptable response templates."""
+    clean_product_name = clean_text_field(product_name)
+    if clean_product_name == "":
+        return "product"
+
+    return clean_product_name.split()[-1].lower()
+
+
+def get_feature_verb(feature):
+    """Choose a simple verb for a feature phrase."""
+    clean_feature = clean_text_field(feature).lower()
+    if clean_feature.endswith("s") and not clean_feature.endswith("ss"):
+        return "are"
+
+    return "is"
+
+
+def validate_persona_response_text(response_text):
+    """Fail internally if persona speech includes implementation wording."""
+    normalized_text = clean_text_field(response_text).lower()
+    forbidden_matches = [
+        phrase
+        for phrase in FORBIDDEN_PERSONA_RESPONSE_PHRASES
+        if phrase in normalized_text
+    ]
+
+    if forbidden_matches:
+        raise ValueError(
+            "Persona response contains forbidden wording: "
+            + ", ".join(forbidden_matches)
+        )
+
+
+def validate_persona_responses(persona_simulations_df):
+    """Validate every generated persona_response before returning results."""
+    for response_text in persona_simulations_df["persona_response"]:
+        validate_persona_response_text(response_text)
 
 
 def prepare_persona_reviews(df):
@@ -314,123 +534,56 @@ def generate_persona_reaction(
     real customer quotes, or claim the product was tested.
     """
     persona_name = str(persona_row["persona_name"])
-    simulated_rating = float(persona_row["simulated_rating"])
-    likely_concern = str(persona_row["likely_concern"])
-    confidence = str(persona_row["confidence"]).lower()
-    evidence_count = int(persona_row["review_count_used"])
-    clean_product_name = clean_text_field(product_name) or "this concept"
-    clean_category = clean_text_field(category)
-    clean_price = clean_text_field(price)
-    concept_detail = choose_concept_detail(
-        product_name,
-        category,
+    clean_product_name = clean_text_field(product_name) or "this product"
+    price_phrase = format_price_for_response(price)
+    selected_features = select_meaningful_features(
         features,
         description,
     )
-    concern_detail = get_concern_detail(likely_concern)
-    rating_stance = get_rating_stance(simulated_rating)
-    tone = rating_stance["tone"]
-    stance = rating_stance["stance"]
-    price_sentence = (
-        f" The listed price of {clean_price} would affect how I judge value."
-        if clean_price
-        else ""
-    )
-    category_phrase = f" in {clean_category}" if clean_category else ""
-    evidence_phrase = (
-        f"based on {evidence_count} similar historical reviews"
-        if evidence_count > 0
-        else "with limited similar historical review evidence"
-    )
+    product_noun = get_product_noun(clean_product_name)
 
     if "Critical Reviewers" in persona_name:
-        if tone == "skeptical":
-            return (
-                f"I would be cautious about {clean_product_name}{category_phrase}, "
-                f"even though {concept_detail} sounds useful.{price_sentence} "
-                f"My concern is around {concern_detail}, especially because this is a "
-                f"simulated response {evidence_phrase} with {confidence} confidence. "
-                "Before buying, I would need clearer proof that the product can "
-                f"deliver reliably and justify the risk. {stance}"
-            )
-        if tone == "mixed":
-            return (
-                f"This sounds useful, but I would compare {clean_product_name} "
-                f"carefully before deciding because {concept_detail} needs to feel "
-                f"reliable in everyday use.{price_sentence} The main concern from "
-                f"similar review patterns is around {concern_detail}, and this simulated "
-                f"view has {confidence} confidence from {evidence_count} evidence "
-                f"reviews. I would want proof, warranty clarity, and stronger value. "
-                f"{stance}"
-            )
-
+        first_feature, second_feature, support_feature = get_voice_features(
+            selected_features,
+            "critical",
+        )
+        price_intro = f"At {price_phrase}, " if price_phrase else ""
+        support_verb = get_feature_verb(support_feature)
         return (
-            f"I like the idea of {clean_product_name}{category_phrase}, especially "
-            f"the focus on {concept_detail}, but I would still check the risk areas."
-            f"{price_sentence} Similar review patterns point to {concern_detail}, so "
-            f"this simulated response stays practical despite the stronger rating "
-            f"and {confidence} confidence. If the proof and value are clear, the "
-            f"concept becomes easier to trust. {stance}"
+            f"{price_intro}I would need strong proof that {first_feature} and "
+            f"{second_feature} will remain reliable with daily use. "
+            f"{support_feature.capitalize()} {support_verb} useful, but "
+            "electronics can make cleaning and durability more complicated. "
+            "I would look for clear warranty, battery-life, and "
+            "water-resistance details before trusting it. "
+            "I would avoid it for now."
         )
 
     if "Highly Satisfied Buyers" in persona_name:
-        if tone == "skeptical":
-            return (
-                f"I am interested in the idea of {clean_product_name}, but the "
-                f"current simulated signal makes me hesitate. {concept_detail} could "
-                f"be convenient{category_phrase}.{price_sentence} Still, similar review "
-                f"patterns raise concerns around {concern_detail}, and the response is based on "
-                f"{evidence_count} evidence reviews with {confidence} confidence. "
-                "I would need clearer benefits and reassurance before treating it "
-                f"as a good purchase. {stance}"
-            )
-        if tone == "mixed":
-            return (
-                f"This sounds useful, but I would want to see whether "
-                f"{clean_product_name} makes daily use easier in a real buying "
-                f"decision. The detail that stands out is {concept_detail}."
-                f"{price_sentence} Based on similar review patterns, {concern_detail} "
-                f"still matters, and this simulated response has {confidence} "
-                f"confidence from {evidence_count} evidence reviews. I would compare "
-                f"options first. {stance}"
-            )
-
+        first_feature, second_feature = get_voice_features(
+            selected_features,
+            "positive",
+        )
+        price_sentence = f"At {price_phrase}, " if price_phrase else ""
         return (
-            f"I like {clean_product_name} because {concept_detail} sounds practical "
-            f"and easy to understand{category_phrase}.{price_sentence} Based on similar "
-            f"historical review patterns, I would still watch {concern_detail}, but "
-            f"the simulated rating suggests this segment may see enough convenience "
-            f"and value to stay interested. With {confidence} confidence from "
-            f"{evidence_count} evidence reviews, the idea feels worth considering. "
-            f"{stance}"
+            f"I like the {first_feature} and {second_feature} because they make "
+            f"an everyday {product_noun} more convenient. {price_sentence}I "
+            "would still want charging and cleaning to be simple, but the "
+            "features could be useful for regular college, gym, or travel use. "
+            "I would consider buying it."
         )
 
-    if tone == "skeptical":
-        return (
-            f"I would be cautious about {clean_product_name} because the concept "
-            f"has some appeal, but {concept_detail} alone may not answer the main "
-            f"trade-offs.{price_sentence} Similar historical review patterns point to "
-            f"{concern_detail}, and this simulated response has {confidence} "
-            f"confidence from {evidence_count} evidence reviews. I would need "
-            f"clearer proof of usefulness, value, and consistency. {stance}"
-        )
-    if tone == "mixed":
-        return (
-            f"This sounds useful, but I would weigh the benefits of {concept_detail} "
-            f"against the practical trade-offs for {clean_product_name}."
-            f"{price_sentence} Based on similar review patterns, the main concern "
-            f"is around {concern_detail}, and this simulated view has {confidence} confidence "
-            f"from {evidence_count} evidence reviews. I would compare alternatives "
-            f"and look for clearer proof before deciding. {stance}"
-        )
-
+    first_feature, second_feature = get_voice_features(
+        selected_features,
+        "neutral",
+    )
+    price_sentence = f"Still, {price_phrase} is" if price_phrase else "Still, it is"
     return (
-        f"I like the direction of {clean_product_name}, especially {concept_detail}, "
-        f"because it gives the concept a clear use case{category_phrase}."
-        f"{price_sentence} This simulated response is based on similar historical "
-        f"review patterns with {confidence} confidence from {evidence_count} "
-        f"evidence reviews. I would still check {concern_detail}, but the balance "
-        f"of benefits and risks looks reasonable. {stance}"
+        f"The {first_feature} and {second_feature} are appealing, especially for "
+        f"long days outside. {price_sentence} much more than a normal "
+        f"{product_noun}, so I would compare it with simpler alternatives and "
+        "check how durable the electronics are. "
+        "I would wait for more proof before buying."
     )
 
 
@@ -527,9 +680,7 @@ def simulate_product_concept(product_name, category, price, features, descriptio
         ),
         axis=1,
     )
-    persona_simulations_df["simulated_reaction"] = persona_simulations_df[
-        "persona_response"
-    ]
+    validate_persona_responses(persona_simulations_df)
     launch_score, launch_label = calculate_launch_readiness(persona_simulations_df)
     recommendations = generate_launch_recommendations(
         persona_simulations_df,

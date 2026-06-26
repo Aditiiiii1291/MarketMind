@@ -1,5 +1,6 @@
 """Beginner-friendly Streamlit dashboard for MarketMind product insights."""
 
+import html
 from pathlib import Path
 import sys
 
@@ -21,6 +22,103 @@ st.set_page_config(
 )
 
 DATA_PATH = PROJECT_ROOT / "data" / "processed" / "marketmind_clean_reviews.csv"
+
+
+def apply_custom_styles():
+    """Add a restrained visual layer for a cleaner dashboard presentation."""
+    st.markdown(
+        """
+        <style>
+        .block-container {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+            max-width: 1180px;
+        }
+
+        .marketmind-hero {
+            border: 1px solid rgba(120, 120, 120, 0.22);
+            border-radius: 10px;
+            padding: 1.35rem 1.5rem;
+            margin-bottom: 1.2rem;
+            background: rgba(127, 127, 127, 0.06);
+        }
+
+        .marketmind-hero h1 {
+            margin: 0 0 0.35rem 0;
+            font-size: 2.35rem;
+            line-height: 1.1;
+            letter-spacing: 0;
+        }
+
+        .marketmind-hero h2 {
+            margin: 0 0 0.65rem 0;
+            font-size: 1.05rem;
+            line-height: 1.45;
+            font-weight: 600;
+            color: inherit;
+            opacity: 0.86;
+        }
+
+        .marketmind-hero p {
+            margin: 0;
+            max-width: 840px;
+            line-height: 1.55;
+            opacity: 0.82;
+        }
+
+        .quote-block {
+            border-left: 4px solid rgba(77, 124, 254, 0.75);
+            border-radius: 6px;
+            padding: 0.85rem 1rem;
+            margin-top: 0.45rem;
+            background: rgba(127, 127, 127, 0.08);
+            font-size: 1.02rem;
+            line-height: 1.6;
+        }
+
+        div.stButton > button[kind="primary"] {
+            width: 100%;
+            min-height: 3rem;
+            font-weight: 700;
+        }
+
+        div[data-testid="stMetric"] {
+            border: 1px solid rgba(120, 120, 120, 0.2);
+            border-radius: 8px;
+            padding: 0.85rem 1rem;
+            background: rgba(127, 127, 127, 0.05);
+        }
+
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 0.4rem;
+        }
+
+        .stTabs [data-baseweb="tab"] {
+            border-radius: 8px 8px 0 0;
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def show_hero():
+    """Render the MarketMind dashboard hero."""
+    st.markdown(
+        """
+        <section class="marketmind-hero">
+            <h1>MarketMind</h1>
+            <h2>Data-backed product feedback simulation and review intelligence</h2>
+            <p>
+                Explore existing review health signals and simulate likely persona
+                feedback for new product concepts using historical review patterns.
+            </p>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 @st.cache_data
@@ -56,6 +154,35 @@ def show_matched_products(product_names):
         st.dataframe(matched_products_df, use_container_width=True, hide_index=True)
 
 
+def show_launch_status_message(launch_label):
+    """Display a clear interpretation of the concept launch label."""
+    if launch_label == "Promising Concept":
+        st.success(
+            "Promising concept: the simulated signals suggest this idea has a "
+            "stronger starting point for customer interest."
+        )
+    elif launch_label == "Needs Refinement":
+        st.warning(
+            "Needs refinement: the concept shows potential, but the feedback "
+            "signals point to areas worth tightening before launch."
+        )
+    elif launch_label == "High Launch Risk":
+        st.error(
+            "High launch risk: the historical patterns suggest meaningful "
+            "concerns that should be addressed before moving forward."
+        )
+    else:
+        st.info("Review the launch score and persona feedback before taking action.")
+
+
+def show_recommendations(recommendations):
+    """Render recommendations in a bordered section."""
+    with st.container(border=True):
+        st.subheader("Recommended Next Actions")
+        for recommendation in recommendations:
+            st.markdown(f"- {recommendation}")
+
+
 def show_analysis_result(result):
     """Render a successful product health analysis result."""
     metrics = result["metrics"]
@@ -65,14 +192,14 @@ def show_analysis_result(result):
 
     st.subheader("Product Summary")
     st.write(f"Review count: **{metrics['review_count']}**")
-    st.write(f"Average rating: **{metrics['average_rating']} / 5**")
-    st.write(f"Health score: **{result['health_score']} / 100**")
     st.write(f"Health label: **{result['health_label']}**")
 
     metric_columns = st.columns(3)
     metric_columns[0].metric("Health Score", f"{result['health_score']} / 100")
     metric_columns[1].metric("Average Rating", f"{metrics['average_rating']} / 5")
     metric_columns[2].metric("Negative Review Percentage", f"{negative_percentage}%")
+
+    st.progress(min(max(result["health_score"], 0), 100) / 100)
 
     st.subheader("Sentiment Distribution")
     sentiment_table = build_sentiment_table(result["sentiment_distribution"])
@@ -85,27 +212,29 @@ def show_analysis_result(result):
     else:
         st.dataframe(category_summary, use_container_width=True, hide_index=True)
 
-    st.subheader("Recommendations")
-    for recommendation in result["recommendations"]:
-        st.markdown(f"- {recommendation}")
+    show_recommendations(result["recommendations"])
 
 
 def show_concept_simulation_result(result):
     """Render a product concept simulation result."""
     st.subheader("Product Concept Summary")
-    st.write(f"Product name: **{result['product_name']}**")
-    st.write(f"Category: **{result['category'] or 'Not specified'}**")
-    st.write(f"Price: **{result['price'] or 'Not specified'}**")
-    st.write(f"Key features: **{result['features'] or 'Not specified'}**")
-    st.write(f"Description: {result['description']}")
+    with st.container(border=True):
+        st.write(f"Product name: **{result['product_name']}**")
+        st.write(f"Category: **{result['category'] or 'Not specified'}**")
+        st.write(f"Price: **{result['price'] or 'Not specified'}**")
+        st.write(f"Key features: **{result['features'] or 'Not specified'}**")
+        st.write(f"Description: {result['description']}")
 
     summary_columns = st.columns(3)
-    summary_columns[0].metric(
+    summary_columns[0].metric("Launch Score", f"{result['launch_score']} / 100")
+    summary_columns[1].metric("Launch Label", result["launch_label"])
+    summary_columns[2].metric(
         "Similar Historical Reviews",
         result["similar_review_count"],
     )
-    summary_columns[1].metric("Launch Score", f"{result['launch_score']} / 100")
-    summary_columns[2].metric("Launch Label", result["launch_label"])
+
+    st.progress(min(max(result["launch_score"], 0), 100) / 100)
+    show_launch_status_message(result["launch_label"])
 
     st.info(
         "Persona responses are simulated, data-backed estimates based on similar "
@@ -117,7 +246,8 @@ def show_concept_simulation_result(result):
     persona_simulations = result["persona_simulations"]
 
     for _, persona_row in persona_simulations.iterrows():
-        with st.expander(str(persona_row["persona_name"]), expanded=True):
+        with st.container(border=True):
+            st.markdown(f"#### {persona_row['persona_name']}")
             persona_columns = st.columns(3)
             persona_columns[0].metric(
                 "Simulated Rating",
@@ -132,20 +262,19 @@ def show_concept_simulation_result(result):
                 ),
             )
 
-            st.write(f"Likely concern: **{persona_row['likely_concern']}**")
-            st.markdown("**Simulated Persona Response**")
-            st.write(persona_row["persona_response"])
+            st.markdown(f"**Likely Concern:** {persona_row['likely_concern']}")
+            st.markdown("**Persona Response**")
+            persona_response = html.escape(str(persona_row["persona_response"]))
+            st.markdown(
+                f"<div class='quote-block'>{persona_response}</div>",
+                unsafe_allow_html=True,
+            )
 
-    st.subheader("Launch Recommendations")
-    for recommendation in result["recommendations"]:
-        st.markdown(f"- {recommendation}")
+    show_recommendations(result["recommendations"])
 
 
-st.title("MarketMind — Product Feedback Intelligence")
-st.write(
-    "Analyze existing product reviews and simulate concept feedback using "
-    "sentiment, complaint categories, feedback personas, and product health signals."
-)
+apply_custom_styles()
+show_hero()
 
 concept_tab, existing_product_tab = st.tabs(
     ["Product Concept Simulator", "Existing Product Analyzer"]
@@ -158,11 +287,16 @@ with concept_tab:
         "based on similar historical review patterns."
     )
 
-    product_name = st.text_input("Product name")
-    category = st.text_input("Category")
-    price = st.text_input("Price")
-    features = st.text_area("Key features")
-    description = st.text_area("Product description")
+    with st.container(border=True):
+        first_row = st.columns(2)
+        product_name = first_row[0].text_input("Product name")
+        category = first_row[1].text_input("Category")
+
+        second_row = st.columns(2)
+        price = second_row[0].text_input("Price")
+        features = second_row[1].text_area("Key features", height=100)
+
+        description = st.text_area("Product description", height=140)
 
     simulate_clicked = st.button("Simulate Persona Feedback", type="primary")
 
@@ -230,9 +364,8 @@ with existing_product_tab:
     else:
         st.info("Enter a product query, then click Analyze Product.")
 
-    st.divider()
-    st.caption(
-        "Scores are based on review ratings and sentiment distribution. Complaint "
-        "categories are keyword/rule-based. This is a review-analysis prototype, "
-        "not a real product launch decision system."
-    )
+st.divider()
+st.caption(
+    "MarketMind is a review-analysis prototype. Persona responses are simulated "
+    "estimates based on historical review patterns."
+)
