@@ -41,6 +41,7 @@ def apply_custom_styles():
             padding: 1.35rem 1.5rem;
             margin-bottom: 1.2rem;
             background: rgba(127, 127, 127, 0.06);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
         }
 
         .marketmind-hero h1 {
@@ -87,6 +88,7 @@ def apply_custom_styles():
             border-radius: 8px;
             padding: 0.85rem 1rem;
             background: rgba(127, 127, 127, 0.05);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
         }
 
         .stTabs [data-baseweb="tab-list"] {
@@ -112,8 +114,8 @@ def show_hero():
             <h1>MarketMind</h1>
             <h2>Data-backed product feedback simulation and review intelligence</h2>
             <p>
-                Explore existing review health signals and simulate likely persona
-                feedback for new product concepts using historical review patterns.
+                Test a product concept against simulated feedback personas and
+                review existing product health signals.
             </p>
         </section>
         """,
@@ -366,6 +368,6 @@ with existing_product_tab:
 
 st.divider()
 st.caption(
-    "MarketMind is a review-analysis prototype. Persona responses are simulated "
-    "estimates based on historical review patterns."
+    "MarketMind is a review-analysis prototype. Persona feedback is simulated "
+    "from historical review patterns."
 )
