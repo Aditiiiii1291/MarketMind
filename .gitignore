@@ -10,6 +10,11 @@ data/raw/*
 data/processed/*
 !data/processed/.gitkeep
 
+data/marketmind.db
+*.db
+*.sqlite
+*.sqlite3
+
 models/*
 !models/.gitkeep
 
