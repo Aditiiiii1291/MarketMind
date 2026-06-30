@@ -22,3 +22,6 @@ models/*
 .DS_Store
 .ipynb_checkpoints/LEARNING_LOG.md 
 LEARNING_LOG.md 
+
+# Generated analysis reports
+reports/*.csv
