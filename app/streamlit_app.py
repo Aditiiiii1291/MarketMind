@@ -4,6 +4,7 @@ import html
 from pathlib import Path
 import sys
 
+import pandas as pd
 import streamlit as st
 
 
@@ -12,7 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.logger import logger  # noqa: E402
-from src.services import concept_service, dashboard_service, product_service  # noqa: E402
+from src.services import dashboard_service  # noqa: E402
 
 
 st.set_page_config(
@@ -128,13 +129,30 @@ def load_reviews(data_path):
     return dashboard_service.load_dashboard_data(data_path)
 
 
-def show_matched_products(product_names, matched_products_table):
+def build_sentiment_table(sentiment_distribution):
+    """Convert sentiment distribution values into a dashboard table."""
+    rows = []
+
+    for sentiment, values in sentiment_distribution.items():
+        rows.append(
+            {
+                "Sentiment": sentiment.title(),
+                "Review Count": values["count"],
+                "Percentage": f"{values['percentage']}%",
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def show_matched_products(product_names):
     """Display matched products without making long names hard to scan."""
     st.subheader("Matched Product Name(s)")
 
     if len(product_names) == 1:
         st.write(product_names[0])
     else:
+        matched_products_table = pd.DataFrame({"Product Name": product_names})
         st.dataframe(
             matched_products_table,
             use_container_width=True,
@@ -173,61 +191,58 @@ def show_recommendations(recommendations):
 
 def show_analysis_result(result):
     """Render a successful product health analysis result."""
-    metrics = result["metrics"]
+    metrics = result.metrics
     dashboard_metrics = dashboard_service.prepare_dashboard_metrics(result)
     dashboard_tables = dashboard_service.prepare_dashboard_tables(result)
-    negative_percentage = dashboard_metrics["negative_percentage"]
+    negative_percentage = dashboard_metrics.negative_percentage
 
-    show_matched_products(
-        result["matched_product_names"],
-        dashboard_tables["matched_products_table"],
-    )
+    show_matched_products(dashboard_tables.matched_product_names)
 
     st.subheader("Product Summary")
     st.write(f"Review count: **{metrics['review_count']}**")
-    st.write(f"Health label: **{result['health_label']}**")
+    st.write(f"Health label: **{result.health_label}**")
 
     metric_columns = st.columns(3)
-    metric_columns[0].metric("Health Score", f"{result['health_score']} / 100")
+    metric_columns[0].metric("Health Score", f"{result.health_score} / 100")
     metric_columns[1].metric("Average Rating", f"{metrics['average_rating']} / 5")
     metric_columns[2].metric("Negative Review Percentage", f"{negative_percentage}%")
 
-    st.progress(min(max(result["health_score"], 0), 100) / 100)
+    st.progress(min(max(result.health_score, 0), 100) / 100)
 
     st.subheader("Sentiment Distribution")
-    sentiment_table = dashboard_tables["sentiment_table"]
+    sentiment_table = build_sentiment_table(dashboard_tables.sentiment_distribution)
     st.dataframe(sentiment_table, use_container_width=True, hide_index=True)
 
     st.subheader("Complaint Category Summary")
-    category_summary = dashboard_tables["category_summary"]
+    category_summary = dashboard_tables.category_summary
     if category_summary.empty:
         st.info("No complaint categories were found for this product.")
     else:
         st.dataframe(category_summary, use_container_width=True, hide_index=True)
 
-    show_recommendations(result["recommendations"])
+    show_recommendations(result.recommendations)
 
 
 def show_concept_simulation_result(result):
     """Render a product concept simulation result."""
     st.subheader("Product Concept Summary")
     with st.container(border=True):
-        st.write(f"Product name: **{result['product_name']}**")
-        st.write(f"Category: **{result['category'] or 'Not specified'}**")
-        st.write(f"Price: **{result['price'] or 'Not specified'}**")
-        st.write(f"Key features: **{result['features'] or 'Not specified'}**")
-        st.write(f"Description: {result['description']}")
+        st.write(f"Product name: **{result.product_name}**")
+        st.write(f"Category: **{result.category or 'Not specified'}**")
+        st.write(f"Price: **{result.price or 'Not specified'}**")
+        st.write(f"Key features: **{result.features or 'Not specified'}**")
+        st.write(f"Description: {result.description}")
 
     summary_columns = st.columns(3)
-    summary_columns[0].metric("Launch Score", f"{result['launch_score']} / 100")
-    summary_columns[1].metric("Launch Label", result["launch_label"])
+    summary_columns[0].metric("Launch Score", f"{result.launch_score} / 100")
+    summary_columns[1].metric("Launch Label", result.launch_label)
     summary_columns[2].metric(
         "Similar Historical Reviews",
-        result["similar_review_count"],
+        result.similar_review_count,
     )
 
-    st.progress(min(max(result["launch_score"], 0), 100) / 100)
-    show_launch_status_message(result["launch_label"])
+    st.progress(min(max(result.launch_score, 0), 100) / 100)
+    show_launch_status_message(result.launch_label)
 
     st.info(
         "Persona responses are simulated, data-backed estimates based on similar "
@@ -236,34 +251,34 @@ def show_concept_simulation_result(result):
     )
 
     st.subheader("Persona Feedback Simulation")
-    persona_simulations = result["persona_simulations"]
+    persona_simulations = result.persona_simulations
 
-    for _, persona_row in persona_simulations.iterrows():
+    for persona_row in persona_simulations:
         with st.container(border=True):
-            st.markdown(f"#### {persona_row['persona_name']}")
+            st.markdown(f"#### {persona_row.persona_name}")
             persona_columns = st.columns(3)
             persona_columns[0].metric(
                 "Simulated Rating",
-                f"{persona_row['simulated_rating']} / 5",
+                f"{persona_row.simulated_rating} / 5",
             )
-            persona_columns[1].metric("Confidence", persona_row["confidence"])
+            persona_columns[1].metric("Confidence", persona_row.confidence)
+            evidence_review_count = persona_row.evidence_review_count
+            if evidence_review_count is None:
+                evidence_review_count = persona_row.review_count_used
             persona_columns[2].metric(
                 "Evidence Reviews",
-                persona_row.get(
-                    "evidence_review_count",
-                    persona_row["review_count_used"],
-                ),
+                evidence_review_count,
             )
 
-            st.markdown(f"**Likely Concern:** {persona_row['likely_concern']}")
+            st.markdown(f"**Likely Concern:** {persona_row.likely_concern}")
             st.markdown("**Persona Response**")
-            persona_response = html.escape(str(persona_row["persona_response"]))
+            persona_response = html.escape(str(persona_row.persona_response))
             st.markdown(
                 f"<div class='quote-block'>{persona_response}</div>",
                 unsafe_allow_html=True,
             )
 
-    show_recommendations(result["recommendations"])
+    show_recommendations(result.recommendations)
 
 
 apply_custom_styles()
@@ -303,7 +318,7 @@ with concept_tab:
         else:
             try:
                 with st.spinner("Finding similar reviews and simulating personas..."):
-                    concept_result = concept_service.simulate_concept(
+                    concept_response = dashboard_service.simulate_concept_for_dashboard(
                         product_name=product_name,
                         category=category,
                         price=price,
@@ -314,10 +329,10 @@ with concept_tab:
                 logger.error("Concept simulation failed: %s", exc)
                 st.error(f"Unable to simulate this product concept: {exc}")
             else:
-                if "error" in concept_result:
-                    st.warning(concept_result["error"])
+                if concept_response.error:
+                    st.warning(concept_response.error)
                 else:
-                    show_concept_simulation_result(concept_result)
+                    show_concept_simulation_result(concept_response.result)
     else:
         st.info(
             "Fill in the product name and description, then click "
@@ -341,7 +356,7 @@ with existing_product_tab:
         else:
             try:
                 reviews_df = load_reviews(DATA_PATH)
-                analysis_result = product_service.analyze_product(
+                analysis_response = dashboard_service.analyze_product_for_dashboard(
                     product_query,
                     reviews_df=reviews_df,
                 )
@@ -352,14 +367,14 @@ with existing_product_tab:
                 logger.error("Product analysis failed: %s", exc)
                 st.error(f"Unable to analyze this product: {exc}")
             else:
-                if "error" in analysis_result:
-                    st.warning(analysis_result["error"])
+                if analysis_response.error:
+                    st.warning(analysis_response.error)
                     st.write(
                         "Try a more specific product name, a visible model number, "
                         "or another keyword from the product title."
                     )
                 else:
-                    show_analysis_result(analysis_result)
+                    show_analysis_result(analysis_response.result)
     else:
         st.info("Enter a product query, then click Analyze Product.")
 

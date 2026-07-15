@@ -1,12 +1,20 @@
 """Dashboard preparation services for MarketMind."""
 
-import pandas as pd
-
 try:
     from src.config import PROCESSED_REVIEWS_PATH
+    from src.schemas.dashboard_schema import (
+        DashboardMetrics,
+        DashboardResponse,
+        DashboardTables,
+    )
     from src.services import concept_service, product_service
 except ImportError:
     from config import PROCESSED_REVIEWS_PATH
+    from schemas.dashboard_schema import (
+        DashboardMetrics,
+        DashboardResponse,
+        DashboardTables,
+    )
     from services import concept_service, product_service
 
 
@@ -20,43 +28,54 @@ def load_dashboard_data(data_path=PROCESSED_REVIEWS_PATH):
 
 def prepare_dashboard_metrics(result):
     """Prepare metric values from a product or concept result."""
-    if "metrics" in result:
-        metrics = result["metrics"]
-        return {
-            "review_count": metrics["review_count"],
-            "average_rating": metrics["average_rating"],
-            "negative_percentage": metrics["negative_percentage"],
-            "health_score": result["health_score"],
-            "health_label": result["health_label"],
-        }
+    if result.error:
+        return DashboardMetrics(error=result.error)
 
-    return concept_service.build_launch_summary(result)
+    if hasattr(result, "metrics"):
+        metrics = result.metrics
+        return DashboardMetrics(
+            review_count=metrics["review_count"],
+            average_rating=metrics["average_rating"],
+            negative_percentage=metrics["negative_percentage"],
+            health_score=result.health_score,
+            health_label=result.health_label,
+        )
+
+    launch_summary = concept_service.build_launch_summary(result)
+    return DashboardMetrics(
+        launch_score=launch_summary.launch_score,
+        launch_label=launch_summary.launch_label,
+        similar_review_count=launch_summary.similar_review_count,
+        recommendations=launch_summary.recommendations,
+        simulation_note=launch_summary.simulation_note,
+        error=launch_summary.error,
+    )
 
 
 def prepare_dashboard_tables(result):
     """Prepare dashboard table data from product analysis results."""
-    sentiment_rows = []
-    for sentiment, values in result["sentiment_distribution"].items():
-        sentiment_rows.append(
-            {
-                "Sentiment": sentiment.title(),
-                "Review Count": values["count"],
-                "Percentage": f"{values['percentage']}%",
-            }
+    if result.error:
+        return DashboardTables()
+
+    if hasattr(result, "sentiment_distribution"):
+        return DashboardTables(
+            sentiment_distribution=result.sentiment_distribution,
+            category_summary=result.category_summary,
+            matched_product_names=result.matched_product_names,
         )
 
-    return {
-        "sentiment_table": pd.DataFrame(sentiment_rows),
-        "category_summary": result["category_summary"],
-        "matched_products_table": pd.DataFrame(
-            {"Product Name": result["matched_product_names"]}
-        ),
-    }
+    return DashboardTables(persona_simulations=result.persona_simulations)
 
 
 def analyze_product_for_dashboard(product_query, reviews_df=None):
     """Analyze one product for dashboard display."""
-    return product_service.analyze_product(product_query, reviews_df=reviews_df)
+    result = product_service.analyze_product(product_query, reviews_df=reviews_df)
+    return DashboardResponse(
+        result=result,
+        metrics=prepare_dashboard_metrics(result),
+        tables=prepare_dashboard_tables(result),
+        error=result.error,
+    )
 
 
 def simulate_concept_for_dashboard(
@@ -67,10 +86,16 @@ def simulate_concept_for_dashboard(
     description,
 ):
     """Simulate a product concept for dashboard display."""
-    return concept_service.simulate_concept(
+    result = concept_service.simulate_concept(
         product_name=product_name,
         category=category,
         price=price,
         features=features,
         description=description,
+    )
+    return DashboardResponse(
+        result=result,
+        metrics=prepare_dashboard_metrics(result),
+        tables=prepare_dashboard_tables(result),
+        error=result.error,
     )
