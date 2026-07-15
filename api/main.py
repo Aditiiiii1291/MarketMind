@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 
+from api.auth import auth_router
 from api.routers import concepts, dashboard, products
 
 
@@ -12,6 +13,7 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+app.include_router(auth_router.router)
 app.include_router(products.router)
 app.include_router(concepts.router)
 app.include_router(dashboard.router)

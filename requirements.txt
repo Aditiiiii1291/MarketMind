@@ -7,3 +7,6 @@ nltk
 joblib
 fastapi
 uvicorn
+passlib[bcrypt]
+bcrypt<4
+python-jose

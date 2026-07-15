@@ -2,8 +2,9 @@
 
 from typing import Dict
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from api.auth.security import get_current_user
 from api.routers import to_jsonable
 from src.services import concept_service
 
@@ -17,7 +18,10 @@ router = APIRouter(prefix="/concept", tags=["concepts"])
     description="Run the existing product concept simulator for a concept payload.",
     response_description="Structured concept simulation DTO.",
 )
-def simulate_concept(payload: Dict[str, str]):
+def simulate_concept(
+    payload: Dict[str, str],
+    current_user=Depends(get_current_user),
+):
     """Return a ConceptSimulation service response for a concept payload."""
     try:
         result = concept_service.simulate_concept(

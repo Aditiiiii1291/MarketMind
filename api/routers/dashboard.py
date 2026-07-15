@@ -1,7 +1,8 @@
 """Dashboard API routes backed by MarketMind dashboard services."""
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from api.auth.security import get_current_user
 from api.routers import to_jsonable
 from src.services import dashboard_service
 
@@ -15,7 +16,10 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
     description="Return the existing dashboard service DTO for a product query.",
     response_description="Structured dashboard response DTO.",
 )
-def get_dashboard(query: str = Query("AWC-38", min_length=1)):
+def get_dashboard(
+    query: str = Query("AWC-38", min_length=1),
+    current_user=Depends(get_current_user),
+):
     """Return a DashboardResponse service object for the dashboard product query."""
     try:
         result = dashboard_service.analyze_product_for_dashboard(query)

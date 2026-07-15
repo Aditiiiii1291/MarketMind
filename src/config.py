@@ -1,5 +1,6 @@
 """Central configuration values for MarketMind paths."""
 
+import os
 from pathlib import Path
 
 
@@ -26,3 +27,9 @@ PERSONA_PROFILES_REPORT_PATH = REPORTS_DIR / "persona_profiles.csv"
 PRODUCT_HEALTH_REPORT_PATH = REPORTS_DIR / "product_health_score.csv"
 PRODUCT_COMPARISON_REPORT_PATH = REPORTS_DIR / "product_comparison.csv"
 CONCEPT_SIMULATION_REPORT_PATH = REPORTS_DIR / "concept_simulation.csv"
+
+JWT_SECRET_KEY = os.getenv("MARKETMIND_JWT_SECRET_KEY", "marketmind-dev-secret")
+JWT_ALGORITHM = os.getenv("MARKETMIND_JWT_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(
+    os.getenv("MARKETMIND_ACCESS_TOKEN_EXPIRE_MINUTES", "60")
+)
