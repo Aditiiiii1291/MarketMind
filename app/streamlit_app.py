@@ -4,7 +4,6 @@ import html
 from pathlib import Path
 import sys
 
-import pandas as pd
 import streamlit as st
 
 
@@ -12,11 +11,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.scoring_engine import analyze_product_health  # noqa: E402
-from src.concept_simulator import simulate_product_concept  # noqa: E402
-from src.config import PROCESSED_REVIEWS_PATH  # noqa: E402
 from src.logger import logger  # noqa: E402
-from src.utils.file_io import load_csv  # noqa: E402
+from src.services import concept_service, dashboard_service, product_service  # noqa: E402
 
 
 st.set_page_config(
@@ -24,7 +20,7 @@ st.set_page_config(
     layout="wide",
 )
 
-DATA_PATH = PROCESSED_REVIEWS_PATH
+DATA_PATH = dashboard_service.DEFAULT_DASHBOARD_DATA_PATH
 
 
 def apply_custom_styles():
@@ -129,34 +125,21 @@ def show_hero():
 @st.cache_data
 def load_reviews(data_path):
     """Load the processed review dataset for dashboard analysis."""
-    return load_csv(data_path, description="Processed review CSV")
+    return dashboard_service.load_dashboard_data(data_path)
 
 
-def build_sentiment_table(sentiment_distribution):
-    """Convert the scoring-engine sentiment dictionary into a display table."""
-    rows = []
-
-    for sentiment, values in sentiment_distribution.items():
-        rows.append(
-            {
-                "Sentiment": sentiment.title(),
-                "Review Count": values["count"],
-                "Percentage": f"{values['percentage']}%",
-            }
-        )
-
-    return pd.DataFrame(rows)
-
-
-def show_matched_products(product_names):
+def show_matched_products(product_names, matched_products_table):
     """Display matched products without making long names hard to scan."""
     st.subheader("Matched Product Name(s)")
 
     if len(product_names) == 1:
         st.write(product_names[0])
     else:
-        matched_products_df = pd.DataFrame({"Product Name": product_names})
-        st.dataframe(matched_products_df, use_container_width=True, hide_index=True)
+        st.dataframe(
+            matched_products_table,
+            use_container_width=True,
+            hide_index=True,
+        )
 
 
 def show_launch_status_message(launch_label):
@@ -191,9 +174,14 @@ def show_recommendations(recommendations):
 def show_analysis_result(result):
     """Render a successful product health analysis result."""
     metrics = result["metrics"]
-    negative_percentage = metrics["negative_percentage"]
+    dashboard_metrics = dashboard_service.prepare_dashboard_metrics(result)
+    dashboard_tables = dashboard_service.prepare_dashboard_tables(result)
+    negative_percentage = dashboard_metrics["negative_percentage"]
 
-    show_matched_products(result["matched_product_names"])
+    show_matched_products(
+        result["matched_product_names"],
+        dashboard_tables["matched_products_table"],
+    )
 
     st.subheader("Product Summary")
     st.write(f"Review count: **{metrics['review_count']}**")
@@ -207,11 +195,11 @@ def show_analysis_result(result):
     st.progress(min(max(result["health_score"], 0), 100) / 100)
 
     st.subheader("Sentiment Distribution")
-    sentiment_table = build_sentiment_table(result["sentiment_distribution"])
+    sentiment_table = dashboard_tables["sentiment_table"]
     st.dataframe(sentiment_table, use_container_width=True, hide_index=True)
 
     st.subheader("Complaint Category Summary")
-    category_summary = result["category_summary"]
+    category_summary = dashboard_tables["category_summary"]
     if category_summary.empty:
         st.info("No complaint categories were found for this product.")
     else:
@@ -315,7 +303,7 @@ with concept_tab:
         else:
             try:
                 with st.spinner("Finding similar reviews and simulating personas..."):
-                    concept_result = simulate_product_concept(
+                    concept_result = concept_service.simulate_concept(
                         product_name=product_name,
                         category=category,
                         price=price,
@@ -353,7 +341,10 @@ with existing_product_tab:
         else:
             try:
                 reviews_df = load_reviews(DATA_PATH)
-                analysis_result = analyze_product_health(reviews_df, product_query)
+                analysis_result = product_service.analyze_product(
+                    product_query,
+                    reviews_df=reviews_df,
+                )
             except FileNotFoundError as exc:
                 logger.error(exc)
                 st.error(f"Processed dataset not found: {DATA_PATH}")
