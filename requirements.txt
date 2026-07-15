@@ -5,3 +5,5 @@ matplotlib
 streamlit
 nltk
 joblib
+fastapi
+uvicorn
