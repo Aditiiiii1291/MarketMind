@@ -5,17 +5,19 @@ modules or Streamlit dashboard. The functions return pandas DataFrames shaped
 like the current CSV workflows expect, so later phases can adopt them safely.
 """
 
-from pathlib import Path
-
 import pandas as pd
 
 try:
+    from src.config import DATABASE_PATH
     from src.database import get_connection, normalize_product_name
+    from src.utils.file_io import require_file
 except ImportError:
+    from config import DATABASE_PATH
     from database import get_connection, normalize_product_name
+    from utils.file_io import require_file
 
 
-DEFAULT_DATABASE_PATH = Path("data") / "marketmind.db"
+DEFAULT_DATABASE_PATH = DATABASE_PATH
 PRODUCT_COLUMNS = [
     "product_id",
     "product_name",
@@ -84,12 +86,13 @@ def get_database_connection(db_path=DEFAULT_DATABASE_PATH):
     Raises:
         FileNotFoundError: If the database has not been created yet.
     """
-    db_path = Path(db_path)
-    if not db_path.exists():
+    try:
+        db_path = require_file(db_path, "SQLite database")
+    except FileNotFoundError as error:
         raise FileNotFoundError(
-            f"SQLite database not found: {db_path}. "
+            f"{error}. "
             "Run scripts/migrate_csv_to_sqlite.py first."
-        )
+        ) from error
 
     return get_connection(db_path)
 

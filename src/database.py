@@ -8,16 +8,22 @@ the same schema from scripts, tests, and the Streamlit dashboard.
 import hashlib
 import re
 import sqlite3
-from pathlib import Path
+
+try:
+    from src.config import DATABASE_PATH
+    from src.utils.file_io import ensure_parent_dir
+except ImportError:
+    from config import DATABASE_PATH
+    from utils.file_io import ensure_parent_dir
 
 
-DEFAULT_DATABASE_PATH = Path("data") / "marketmind.db"
+DEFAULT_DATABASE_PATH = DATABASE_PATH
 
 
 def get_connection(db_path=DEFAULT_DATABASE_PATH):
     """Open a SQLite connection and enable foreign-key checks."""
-    db_path = Path(db_path)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
+    if str(db_path) != ":memory:":
+        db_path = ensure_parent_dir(db_path)
 
     connection = sqlite3.connect(db_path)
     connection.execute("PRAGMA foreign_keys = ON")

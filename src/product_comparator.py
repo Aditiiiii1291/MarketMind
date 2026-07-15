@@ -5,20 +5,24 @@ It does not duplicate the scoring formula or train a new model.
 """
 
 import argparse
-from pathlib import Path
 
 import pandas as pd
 
 try:
     from scoring_engine import DEFAULT_INPUT_PATH, analyze_product_health
     from scoring_engine import load_processed_data
+    from config import PRODUCT_COMPARISON_REPORT_PATH
+    from logger import logger
+    from utils.file_io import ensure_parent_dir
 except ImportError:
     from src.scoring_engine import DEFAULT_INPUT_PATH, analyze_product_health
     from src.scoring_engine import load_processed_data
+    from src.config import PRODUCT_COMPARISON_REPORT_PATH
+    from src.logger import logger
+    from src.utils.file_io import ensure_parent_dir
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "reports" / "product_comparison.csv"
+DEFAULT_OUTPUT_PATH = PRODUCT_COMPARISON_REPORT_PATH
 
 
 def make_console_safe(value):
@@ -145,8 +149,7 @@ def save_comparison_report(ranked_df, output_path):
         ranked_df: DataFrame returned by rank_products.
         output_path: Destination path for the report CSV.
     """
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = ensure_parent_dir(output_path)
     ranked_df.to_csv(output_path, index=False)
 
 
@@ -172,7 +175,11 @@ if __name__ == "__main__":
     if len(product_queries) < 2 or len(product_queries) > 5:
         print("Please provide 2 to 5 products using repeated --product arguments.")
     else:
-        reviews_df = load_processed_data(DEFAULT_INPUT_PATH)
+        try:
+            reviews_df = load_processed_data(DEFAULT_INPUT_PATH)
+        except FileNotFoundError as error:
+            logger.error(error)
+            raise SystemExit(1)
         comparison = compare_products(reviews_df, product_queries)
         ranked_products = rank_products(comparison)
         insight = generate_comparison_insight(ranked_products)

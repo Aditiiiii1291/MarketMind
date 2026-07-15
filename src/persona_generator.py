@@ -4,12 +4,27 @@ These are feedback personas, or review segments, based on review behavior and
 sentiment patterns. They are not real customer identities or demographics.
 """
 
-from pathlib import Path
-
 import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import CountVectorizer, ENGLISH_STOP_WORDS
 from sklearn.preprocessing import StandardScaler
+
+try:
+    from src.config import (
+        PERSONA_PROFILES_REPORT_PATH,
+        PROCESSED_REVIEWS_PATH,
+        REVIEW_PERSONAS_REPORT_PATH,
+    )
+    from src.logger import logger
+    from src.utils.file_io import ensure_parent_dir, load_csv
+except ImportError:
+    from config import (
+        PERSONA_PROFILES_REPORT_PATH,
+        PROCESSED_REVIEWS_PATH,
+        REVIEW_PERSONAS_REPORT_PATH,
+    )
+    from logger import logger
+    from utils.file_io import ensure_parent_dir, load_csv
 
 try:
     from complaint_miner import (
@@ -27,10 +42,9 @@ except ImportError:
     )
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_INPUT_PATH = PROJECT_ROOT / "data" / "processed" / "marketmind_clean_reviews.csv"
-DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "reports" / "review_personas.csv"
-DEFAULT_PROFILE_OUTPUT_PATH = PROJECT_ROOT / "reports" / "persona_profiles.csv"
+DEFAULT_INPUT_PATH = PROCESSED_REVIEWS_PATH
+DEFAULT_OUTPUT_PATH = REVIEW_PERSONAS_REPORT_PATH
+DEFAULT_PROFILE_OUTPUT_PATH = PERSONA_PROFILES_REPORT_PATH
 SENTIMENT_SCORE_MAP = {
     "negative": 0,
     "neutral": 1,
@@ -50,7 +64,7 @@ def load_processed_data(file_path):
     Returns:
         A pandas DataFrame containing processed reviews.
     """
-    return pd.read_csv(file_path)
+    return load_csv(file_path, description="Processed review CSV")
 
 
 def create_persona_features(df):
@@ -391,8 +405,7 @@ def save_persona_report(persona_summary_df, keyword_df, output_path):
     """
     report_df = persona_summary_df.merge(keyword_df, on="cluster", how="left")
 
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = ensure_parent_dir(output_path)
     report_df.to_csv(output_path, index=False)
 
 
@@ -403,13 +416,16 @@ def save_persona_profiles(persona_profiles_df, output_path):
         persona_profiles_df: DataFrame returned by build_persona_profiles.
         output_path: Destination path for the persona profile CSV.
     """
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = ensure_parent_dir(output_path)
     persona_profiles_df.to_csv(output_path, index=False)
 
 
 if __name__ == "__main__":
-    reviews_df = load_processed_data(DEFAULT_INPUT_PATH)
+    try:
+        reviews_df = load_processed_data(DEFAULT_INPUT_PATH)
+    except FileNotFoundError as error:
+        logger.error(error)
+        raise SystemExit(1)
     persona_features_df = create_persona_features(reviews_df)
     clustered_personas_df, persona_model = cluster_review_personas(
         persona_features_df,

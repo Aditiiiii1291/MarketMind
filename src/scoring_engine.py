@@ -5,9 +5,17 @@ a readable product health score. It does not train a new model or use an LLM.
 """
 
 import argparse
-from pathlib import Path
 
 import pandas as pd
+
+try:
+    from src.config import PROCESSED_REVIEWS_PATH, PRODUCT_HEALTH_REPORT_PATH
+    from src.logger import logger
+    from src.utils.file_io import ensure_parent_dir, load_csv
+except ImportError:
+    from config import PROCESSED_REVIEWS_PATH, PRODUCT_HEALTH_REPORT_PATH
+    from logger import logger
+    from utils.file_io import ensure_parent_dir, load_csv
 
 try:
     from complaint_miner import (
@@ -27,9 +35,8 @@ except ImportError:
     )
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_INPUT_PATH = PROJECT_ROOT / "data" / "processed" / "marketmind_clean_reviews.csv"
-DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "reports" / "product_health_score.csv"
+DEFAULT_INPUT_PATH = PROCESSED_REVIEWS_PATH
+DEFAULT_OUTPUT_PATH = PRODUCT_HEALTH_REPORT_PATH
 SENTIMENT_LABELS = ["negative", "neutral", "positive"]
 
 
@@ -42,7 +49,7 @@ def load_processed_data(file_path):
     Returns:
         A pandas DataFrame containing processed reviews.
     """
-    return pd.read_csv(file_path)
+    return load_csv(file_path, description="Processed review CSV")
 
 
 def calculate_sentiment_distribution(product_reviews):
@@ -269,8 +276,7 @@ def save_product_health_report(result, output_path):
         ]
     )
 
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = ensure_parent_dir(output_path)
     report_df.to_csv(output_path, index=False)
 
 
@@ -328,7 +334,12 @@ if __name__ == "__main__":
     if args.product.strip() == "":
         print("Please provide a non-empty product query.")
     else:
-        reviews_df = load_processed_data(DEFAULT_INPUT_PATH)
+        try:
+            reviews_df = load_processed_data(DEFAULT_INPUT_PATH)
+        except FileNotFoundError as error:
+            logger.error(error)
+            raise SystemExit(1)
+
         analysis_result = analyze_product_health(reviews_df, args.product)
 
         if "error" in analysis_result:

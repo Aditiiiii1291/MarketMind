@@ -6,12 +6,22 @@ patterns, not real customer quotes, guaranteed demand, or a launch decision.
 """
 
 import argparse
-from pathlib import Path
 import re
 
 import joblib
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
+
+try:
+    from src.config import CONCEPT_SIMULATION_REPORT_PATH, PROCESSED_REVIEWS_PATH
+    from src.logger import logger
+    from src.utils.file_io import ensure_parent_dir, load_csv, require_file
+    from src.utils.file_io import resolve_project_path
+except ImportError:
+    from config import CONCEPT_SIMULATION_REPORT_PATH, PROCESSED_REVIEWS_PATH
+    from logger import logger
+    from utils.file_io import ensure_parent_dir, load_csv, require_file
+    from utils.file_io import resolve_project_path
 
 try:
     from persona_generator import (
@@ -37,9 +47,8 @@ except ImportError:
     from src.sentiment_model import VECTORIZER_OUTPUT_PATH
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_INPUT_PATH = PROJECT_ROOT / "data" / "processed" / "marketmind_clean_reviews.csv"
-DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "reports" / "concept_simulation.csv"
+DEFAULT_INPUT_PATH = PROCESSED_REVIEWS_PATH
+DEFAULT_OUTPUT_PATH = CONCEPT_SIMULATION_REPORT_PATH
 DEFAULT_VECTORIZER_PATH = VECTORIZER_OUTPUT_PATH
 MIN_EVIDENCE_REVIEWS = 15
 HIGH_CONFIDENCE_REVIEWS = 50
@@ -85,16 +94,6 @@ FORBIDDEN_PERSONA_RESPONSE_PHRASES = (
 )
 
 
-def resolve_project_path(file_path):
-    """Resolve project-relative paths while preserving absolute paths."""
-    path = Path(file_path)
-
-    if path.is_absolute():
-        return path
-
-    return PROJECT_ROOT / path
-
-
 def load_processed_data(file_path):
     """Load the processed review CSV file.
 
@@ -104,7 +103,7 @@ def load_processed_data(file_path):
     Returns:
         A pandas DataFrame containing processed reviews.
     """
-    return pd.read_csv(file_path)
+    return load_csv(file_path, description="Processed review CSV")
 
 
 def clean_text_field(value):
@@ -428,7 +427,7 @@ def retrieve_similar_reviews(
     if usable_reviews_df.empty:
         return reviews_df.iloc[0:0].copy()
 
-    vectorizer = joblib.load(resolve_project_path(vectorizer_path))
+    vectorizer = joblib.load(require_file(vectorizer_path, "TF-IDF vectorizer model"))
     concept_vector = vectorizer.transform([clean_concept_text])
     review_vectors = vectorizer.transform(usable_reviews_df["cleaned_review"])
     similarity_scores = cosine_similarity(concept_vector, review_vectors).ravel()
@@ -730,8 +729,7 @@ def save_concept_simulation_report(result, output_path):
         )
 
     report_df = pd.DataFrame(report_rows)
-    output_path = resolve_project_path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = ensure_parent_dir(output_path)
     report_df.to_csv(output_path, index=False)
 
 
@@ -795,15 +793,25 @@ def print_simulation_result(result):
 
 if __name__ == "__main__":
     args = parse_args()
-    simulation_result = simulate_product_concept(
-        product_name=args.name,
-        category=args.category,
-        price=args.price,
-        features=args.features,
-        description=args.description,
-    )
+    try:
+        simulation_result = simulate_product_concept(
+            product_name=args.name,
+            category=args.category,
+            price=args.price,
+            features=args.features,
+            description=args.description,
+        )
+    except (FileNotFoundError, ValueError) as error:
+        logger.error(error)
+        raise SystemExit(1)
+
     print_simulation_result(simulation_result)
 
     if "error" not in simulation_result:
-        save_concept_simulation_report(simulation_result, args.output)
+        try:
+            save_concept_simulation_report(simulation_result, args.output)
+        except (FileNotFoundError, ValueError) as error:
+            logger.error(error)
+            raise SystemExit(1)
+
         print(f"\nConcept simulation report saved to: {resolve_project_path(args.output)}")

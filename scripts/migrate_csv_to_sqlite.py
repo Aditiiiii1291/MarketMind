@@ -24,10 +24,13 @@ from src.database import (  # noqa: E402
     initialize_database,
     normalize_product_name,
 )
+from src.config import DATABASE_PATH, PROCESSED_REVIEWS_PATH  # noqa: E402
+from src.logger import logger  # noqa: E402
+from src.utils.file_io import require_file  # noqa: E402
 
 
-DEFAULT_INPUT_PATH = PROJECT_ROOT / "data" / "processed" / "marketmind_clean_reviews.csv"
-DEFAULT_DATABASE_PATH = PROJECT_ROOT / "data" / "marketmind.db"
+DEFAULT_INPUT_PATH = PROCESSED_REVIEWS_PATH
+DEFAULT_DATABASE_PATH = DATABASE_PATH
 DEFAULT_SOURCE_NAME = "marketmind_clean_reviews_csv"
 REQUIRED_COLUMNS = {
     "product_name",
@@ -372,17 +375,24 @@ def print_summary(total_stats, counts, connection):
 def main():
     """Run the CSV-to-SQLite migration."""
     args = parse_args()
-    input_path = Path(args.input)
+    try:
+        input_path = require_file(args.input, "Processed CSV")
+    except FileNotFoundError as error:
+        logger.error(error)
+        print(error)
+        return 1
     database_path = Path(args.database)
-
-    if not input_path.exists():
-        raise FileNotFoundError(f"Processed CSV not found: {input_path}")
 
     if args.reset and database_path.exists():
         print(f"WARNING: --reset enabled. Deleting existing database: {database_path}")
         database_path.unlink()
 
-    validate_csv_columns(input_path)
+    try:
+        validate_csv_columns(input_path)
+    except ValueError as error:
+        logger.error(error)
+        print(error)
+        return 1
 
     total_stats = {
         "rows_read": 0,
@@ -420,4 +430,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -20,6 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.data_preprocessing import clean_review_text
+from src.config import DATABASE_PATH, MINI_ELECTRONICS_REVIEWS_PATH
 from src.database import (
     create_stable_product_id,
     create_stable_review_id,
@@ -27,12 +28,14 @@ from src.database import (
     initialize_database,
     normalize_product_name,
 )
+from src.logger import logger
+from src.utils.file_io import display_path, load_csv, resolve_project_path
 
 
-DEFAULT_INPUT_PATH = "data/raw/mini_electronics_reviews.csv"
+DEFAULT_INPUT_PATH = MINI_ELECTRONICS_REVIEWS_PATH
 DEFAULT_SOURCE_NAME = "mini_electronics_v1"
 DEFAULT_CATEGORY = "Electronics"
-DEFAULT_DATABASE_PATH = "data/marketmind.db"
+DEFAULT_DATABASE_PATH = DATABASE_PATH
 
 REQUIRED_RAW_COLUMNS = [
     "product_title",
@@ -60,7 +63,11 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Import an external review CSV into data/marketmind.db."
     )
-    parser.add_argument("--input", default=DEFAULT_INPUT_PATH, help="Input CSV path.")
+    parser.add_argument(
+        "--input",
+        default=str(DEFAULT_INPUT_PATH),
+        help="Input CSV path.",
+    )
     parser.add_argument(
         "--source-name",
         default=DEFAULT_SOURCE_NAME,
@@ -73,7 +80,7 @@ def parse_arguments():
     )
     parser.add_argument(
         "--database",
-        default=DEFAULT_DATABASE_PATH,
+        default=str(DEFAULT_DATABASE_PATH),
         help="SQLite database path.",
     )
     parser.add_argument(
@@ -85,29 +92,9 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def resolve_project_path(path_text):
-    """Resolve a path from the project root unless it is already absolute."""
-    path = Path(path_text)
-    if path.is_absolute():
-        return path
-
-    return PROJECT_ROOT / path
-
-
-def display_path(path):
-    """Return a readable path, relative to the project root when possible."""
-    try:
-        return str(path.relative_to(PROJECT_ROOT))
-    except ValueError:
-        return str(path)
-
-
 def read_external_csv(input_path):
     """Load the external CSV file."""
-    if not input_path.exists():
-        raise FileNotFoundError(f"Input CSV not found: {display_path(input_path)}")
-
-    return pd.read_csv(input_path)
+    return load_csv(input_path, description="Input CSV")
 
 
 def validate_raw_columns(raw_df):
@@ -427,6 +414,7 @@ def main():
     try:
         raw_df = read_external_csv(input_path)
     except FileNotFoundError as error:
+        logger.error(error)
         print(error)
         return 1
 

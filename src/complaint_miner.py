@@ -6,18 +6,30 @@ model training is performed here.
 """
 
 import argparse
-from pathlib import Path
 
 import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer, ENGLISH_STOP_WORDS
 
+try:
+    from src.config import (
+        COMPLAINT_CATEGORY_SUMMARY_PATH,
+        PROCESSED_REVIEWS_PATH,
+        TOP_COMPLAINTS_REPORT_PATH,
+    )
+    from src.logger import logger
+    from src.utils.file_io import ensure_parent_dir, load_csv
+except ImportError:
+    from config import (
+        COMPLAINT_CATEGORY_SUMMARY_PATH,
+        PROCESSED_REVIEWS_PATH,
+        TOP_COMPLAINTS_REPORT_PATH,
+    )
+    from logger import logger
+    from utils.file_io import ensure_parent_dir, load_csv
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_INPUT_PATH = PROJECT_ROOT / "data" / "processed" / "marketmind_clean_reviews.csv"
-DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "reports" / "top_complaints.csv"
-DEFAULT_CATEGORY_SUMMARY_PATH = (
-    PROJECT_ROOT / "reports" / "complaint_category_summary.csv"
-)
+DEFAULT_INPUT_PATH = PROCESSED_REVIEWS_PATH
+DEFAULT_OUTPUT_PATH = TOP_COMPLAINTS_REPORT_PATH
+DEFAULT_CATEGORY_SUMMARY_PATH = COMPLAINT_CATEGORY_SUMMARY_PATH
 NEGATION_WORDS = {"no", "not", "nor", "never", "without"}
 NOISY_WORDS = {
     "product",
@@ -62,7 +74,7 @@ def load_processed_data(file_path):
     Returns:
         A pandas DataFrame containing the processed reviews.
     """
-    return pd.read_csv(file_path)
+    return load_csv(file_path, description="Processed review CSV")
 
 
 def normalize_product_name(product_name):
@@ -222,8 +234,7 @@ def save_complaint_report(complaints_df, output_path):
         complaints_df: DataFrame containing complaint phrases and frequencies.
         output_path: Destination path for the report CSV.
     """
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = ensure_parent_dir(output_path)
     complaints_df.to_csv(output_path, index=False)
 
 
@@ -294,8 +305,7 @@ def save_category_summary(category_summary_df, output_path):
         category_summary_df: DataFrame returned by build_category_summary.
         output_path: Destination path for the summary CSV.
     """
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path = ensure_parent_dir(output_path)
     category_summary_df.to_csv(output_path, index=False)
 
 
@@ -340,7 +350,11 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    reviews_df = load_processed_data(DEFAULT_INPUT_PATH)
+    try:
+        reviews_df = load_processed_data(DEFAULT_INPUT_PATH)
+    except FileNotFoundError as error:
+        logger.error(error)
+        raise SystemExit(1)
 
     if args.product:
         (

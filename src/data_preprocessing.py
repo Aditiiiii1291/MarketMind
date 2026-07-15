@@ -4,15 +4,32 @@ This module converts the raw product review CSV into a cleaned dataset that can
 be used later for sentiment analysis, complaint mining, and scoring workflows.
 """
 
-import os
 import re
 
 import pandas as pd
 
+try:
+    from src.config import PROCESSED_REVIEWS_PATH, RAW_REVIEWS_PATH
+    from src.logger import logger
+    from src.utils.file_io import ensure_parent_dir, load_csv
+except ImportError:
+    from config import PROCESSED_REVIEWS_PATH, RAW_REVIEWS_PATH
+    from logger import logger
+    from utils.file_io import ensure_parent_dir, load_csv
+
+
+DEFAULT_INPUT_PATH = RAW_REVIEWS_PATH
+DEFAULT_OUTPUT_PATH = PROCESSED_REVIEWS_PATH
+
 
 def load_raw_data(file_path):
     """Load the raw CSV dataset into a pandas DataFrame."""
-    return pd.read_csv(file_path, encoding="latin1", low_memory=False)
+    return load_csv(
+        file_path,
+        description="Raw review CSV",
+        encoding="latin1",
+        low_memory=False,
+    )
 
 
 def standardize_columns(df):
@@ -116,9 +133,7 @@ def prepare_dataset(input_path, output_path):
         ]
     )
 
-    output_folder = os.path.dirname(output_path)
-    if output_folder:
-        os.makedirs(output_folder, exist_ok=True)
+    output_path = ensure_parent_dir(output_path)
 
     final_columns = [
         "product_name",
@@ -156,7 +171,8 @@ def prepare_dataset(input_path, output_path):
 
 
 if __name__ == "__main__":
-    prepare_dataset(
-        "data/raw/Equal.csv",
-        "data/processed/marketmind_clean_reviews.csv",
-    )
+    try:
+        prepare_dataset(DEFAULT_INPUT_PATH, DEFAULT_OUTPUT_PATH)
+    except FileNotFoundError as error:
+        logger.error(error)
+        raise SystemExit(1)

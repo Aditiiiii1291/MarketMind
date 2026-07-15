@@ -14,6 +14,9 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.scoring_engine import analyze_product_health  # noqa: E402
 from src.concept_simulator import simulate_product_concept  # noqa: E402
+from src.config import PROCESSED_REVIEWS_PATH  # noqa: E402
+from src.logger import logger  # noqa: E402
+from src.utils.file_io import load_csv  # noqa: E402
 
 
 st.set_page_config(
@@ -21,7 +24,7 @@ st.set_page_config(
     layout="wide",
 )
 
-DATA_PATH = PROJECT_ROOT / "data" / "processed" / "marketmind_clean_reviews.csv"
+DATA_PATH = PROCESSED_REVIEWS_PATH
 
 
 def apply_custom_styles():
@@ -126,7 +129,7 @@ def show_hero():
 @st.cache_data
 def load_reviews(data_path):
     """Load the processed review dataset for dashboard analysis."""
-    return pd.read_csv(data_path)
+    return load_csv(data_path, description="Processed review CSV")
 
 
 def build_sentiment_table(sentiment_distribution):
@@ -320,6 +323,7 @@ with concept_tab:
                         description=description,
                     )
             except Exception as exc:
+                logger.error("Concept simulation failed: %s", exc)
                 st.error(f"Unable to simulate this product concept: {exc}")
             else:
                 if "error" in concept_result:
@@ -350,9 +354,11 @@ with existing_product_tab:
             try:
                 reviews_df = load_reviews(DATA_PATH)
                 analysis_result = analyze_product_health(reviews_df, product_query)
-            except FileNotFoundError:
+            except FileNotFoundError as exc:
+                logger.error(exc)
                 st.error(f"Processed dataset not found: {DATA_PATH}")
             except Exception as exc:
+                logger.error("Product analysis failed: %s", exc)
                 st.error(f"Unable to analyze this product: {exc}")
             else:
                 if "error" in analysis_result:

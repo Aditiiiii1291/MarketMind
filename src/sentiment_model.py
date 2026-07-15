@@ -8,24 +8,38 @@ It trains a simple TF-IDF + Logistic Regression model and saves the trained
 artifacts in the models folder.
 """
 
-import os
-
 import joblib
-import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.model_selection import train_test_split
 
+try:
+    from src.config import (
+        PROCESSED_REVIEWS_PATH,
+        SENTIMENT_MODEL_PATH,
+        TFIDF_VECTORIZER_PATH,
+    )
+    from src.logger import logger
+    from src.utils.file_io import ensure_parent_dir, load_csv, require_file
+except ImportError:
+    from config import (
+        PROCESSED_REVIEWS_PATH,
+        SENTIMENT_MODEL_PATH,
+        TFIDF_VECTORIZER_PATH,
+    )
+    from logger import logger
+    from utils.file_io import ensure_parent_dir, load_csv, require_file
 
-PROCESSED_DATA_PATH = "data/processed/marketmind_clean_reviews.csv"
-MODEL_OUTPUT_PATH = "models/sentiment_model.pkl"
-VECTORIZER_OUTPUT_PATH = "models/tfidf_vectorizer.pkl"
+
+PROCESSED_DATA_PATH = PROCESSED_REVIEWS_PATH
+MODEL_OUTPUT_PATH = SENTIMENT_MODEL_PATH
+VECTORIZER_OUTPUT_PATH = TFIDF_VECTORIZER_PATH
 
 
 def load_processed_data(file_path):
     """Load the processed CSV file into a pandas DataFrame."""
-    return pd.read_csv(file_path)
+    return load_csv(file_path, description="Processed review CSV")
 
 
 def prepare_features_and_labels(df):
@@ -77,13 +91,14 @@ def evaluate_model(model, vectorizer, X_test, y_test):
 
 def save_model_artifacts(model, vectorizer):
     """Save the trained model and vectorizer as joblib pickle files."""
-    os.makedirs("models", exist_ok=True)
+    model_path = ensure_parent_dir(MODEL_OUTPUT_PATH)
+    vectorizer_path = ensure_parent_dir(VECTORIZER_OUTPUT_PATH)
 
-    joblib.dump(model, MODEL_OUTPUT_PATH)
-    joblib.dump(vectorizer, VECTORIZER_OUTPUT_PATH)
+    joblib.dump(model, model_path)
+    joblib.dump(vectorizer, vectorizer_path)
 
-    print(f"\nSaved model to: {MODEL_OUTPUT_PATH}")
-    print(f"Saved vectorizer to: {VECTORIZER_OUTPUT_PATH}")
+    print(f"\nSaved model to: {model_path}")
+    print(f"Saved vectorizer to: {vectorizer_path}")
 
 
 def predict_sentiment(
@@ -93,8 +108,8 @@ def predict_sentiment(
 ):
     """Predict sentiment for one review using saved model artifacts."""
     # Load the already-trained model and vectorizer from disk.
-    model = joblib.load(model_path)
-    vectorizer = joblib.load(vectorizer_path)
+    model = joblib.load(require_file(model_path, "Sentiment model"))
+    vectorizer = joblib.load(require_file(vectorizer_path, "TF-IDF vectorizer model"))
 
     # The vectorizer expects a list-like input, even for one review.
     review_tfidf = vectorizer.transform([review_text])
@@ -106,7 +121,11 @@ def predict_sentiment(
 
 
 if __name__ == "__main__":
-    reviews_df = load_processed_data(PROCESSED_DATA_PATH)
+    try:
+        reviews_df = load_processed_data(PROCESSED_DATA_PATH)
+    except FileNotFoundError as error:
+        logger.error(error)
+        raise SystemExit(1)
     X, y = prepare_features_and_labels(reviews_df)
     X_train, X_test, y_train, y_test = split_data(X, y)
 
