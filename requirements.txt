@@ -10,3 +10,4 @@ uvicorn
 passlib[bcrypt]
 bcrypt<4
 python-jose
+python-multipart
