@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 
 from api.auth import auth_router
-from api.routers import concepts, dashboard, products, uploads
+from api.routers import analysis, concepts, dashboard, products, uploads
 
 
 app = FastAPI(
@@ -18,3 +18,4 @@ app.include_router(products.router)
 app.include_router(concepts.router)
 app.include_router(dashboard.router)
 app.include_router(uploads.router)
+app.include_router(analysis.router)
