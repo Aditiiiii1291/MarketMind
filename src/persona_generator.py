@@ -12,19 +12,19 @@ from sklearn.preprocessing import StandardScaler
 try:
     from src.config import (
         PERSONA_PROFILES_REPORT_PATH,
-        PROCESSED_REVIEWS_PATH,
         REVIEW_PERSONAS_REPORT_PATH,
     )
     from src.logger import logger
-    from src.utils.file_io import ensure_parent_dir, load_csv
+    from src.review_repository import DEFAULT_DATABASE_PATH, get_all_reviews
+    from src.utils.file_io import ensure_parent_dir
 except ImportError:
     from config import (
         PERSONA_PROFILES_REPORT_PATH,
-        PROCESSED_REVIEWS_PATH,
         REVIEW_PERSONAS_REPORT_PATH,
     )
     from logger import logger
-    from utils.file_io import ensure_parent_dir, load_csv
+    from review_repository import DEFAULT_DATABASE_PATH, get_all_reviews
+    from utils.file_io import ensure_parent_dir
 
 try:
     from complaint_miner import (
@@ -42,7 +42,7 @@ except ImportError:
     )
 
 
-DEFAULT_INPUT_PATH = PROCESSED_REVIEWS_PATH
+DEFAULT_INPUT_PATH = DEFAULT_DATABASE_PATH
 DEFAULT_OUTPUT_PATH = REVIEW_PERSONAS_REPORT_PATH
 DEFAULT_PROFILE_OUTPUT_PATH = PERSONA_PROFILES_REPORT_PATH
 SENTIMENT_SCORE_MAP = {
@@ -55,16 +55,16 @@ NO_USABLE_PHRASES_MESSAGE = "No usable review phrases found"
 NO_MAJOR_COMPLAINT_MESSAGE = "No major complaint pattern found"
 
 
-def load_processed_data(file_path):
-    """Load the processed review CSV file.
+def load_processed_data(db_path):
+    """Load persisted review data from SQLite.
 
     Args:
-        file_path: Path to the processed CSV file.
+        db_path: Path to the SQLite database.
 
     Returns:
         A pandas DataFrame containing processed reviews.
     """
-    return load_csv(file_path, description="Processed review CSV")
+    return get_all_reviews(db_path)
 
 
 def create_persona_features(df):

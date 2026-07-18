@@ -13,14 +13,16 @@ import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 
 try:
-    from src.config import CONCEPT_SIMULATION_REPORT_PATH, PROCESSED_REVIEWS_PATH
+    from src.config import CONCEPT_SIMULATION_REPORT_PATH
     from src.logger import logger
-    from src.utils.file_io import ensure_parent_dir, load_csv, require_file
+    from src.review_repository import DEFAULT_DATABASE_PATH, get_all_reviews
+    from src.utils.file_io import ensure_parent_dir, require_file
     from src.utils.file_io import resolve_project_path
 except ImportError:
-    from config import CONCEPT_SIMULATION_REPORT_PATH, PROCESSED_REVIEWS_PATH
+    from config import CONCEPT_SIMULATION_REPORT_PATH
     from logger import logger
-    from utils.file_io import ensure_parent_dir, load_csv, require_file
+    from review_repository import DEFAULT_DATABASE_PATH, get_all_reviews
+    from utils.file_io import ensure_parent_dir, require_file
     from utils.file_io import resolve_project_path
 
 try:
@@ -47,7 +49,7 @@ except ImportError:
     from src.sentiment_model import VECTORIZER_OUTPUT_PATH
 
 
-DEFAULT_INPUT_PATH = PROCESSED_REVIEWS_PATH
+DEFAULT_INPUT_PATH = DEFAULT_DATABASE_PATH
 DEFAULT_OUTPUT_PATH = CONCEPT_SIMULATION_REPORT_PATH
 DEFAULT_VECTORIZER_PATH = VECTORIZER_OUTPUT_PATH
 MIN_EVIDENCE_REVIEWS = 15
@@ -94,16 +96,16 @@ FORBIDDEN_PERSONA_RESPONSE_PHRASES = (
 )
 
 
-def load_processed_data(file_path):
-    """Load the processed review CSV file.
+def load_processed_data(db_path):
+    """Load persisted review data from SQLite.
 
     Args:
-        file_path: Path to the processed CSV file.
+        db_path: Path to the SQLite database.
 
     Returns:
         A pandas DataFrame containing processed reviews.
     """
-    return load_csv(file_path, description="Processed review CSV")
+    return get_all_reviews(db_path)
 
 
 def clean_text_field(value):
@@ -647,14 +649,23 @@ def generate_launch_recommendations(persona_simulations_df, launch_label):
     return recommendations[:4]
 
 
-def simulate_product_concept(product_name, category, price, features, description):
+def simulate_product_concept(
+    product_name,
+    category,
+    price,
+    features,
+    description,
+    reviews_df=None,
+    db_path=DEFAULT_INPUT_PATH,
+):
     """Run the full data-backed product concept simulation flow."""
     if clean_text_field(product_name) == "":
         return {"error": "Please provide a non-empty product name."}
     if clean_text_field(description) == "":
         return {"error": "Please provide a non-empty product description."}
 
-    reviews_df = load_processed_data(DEFAULT_INPUT_PATH)
+    if reviews_df is None:
+        reviews_df = load_processed_data(db_path)
     concept_text = build_concept_text(
         product_name,
         category,

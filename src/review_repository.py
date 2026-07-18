@@ -1,8 +1,8 @@
 """Read-only SQLite repository functions for MarketMind reviews.
 
-Phase 9B introduces this query layer without changing the existing CSV-based
-modules or Streamlit dashboard. The functions return pandas DataFrames shaped
-like the current CSV workflows expect, so later phases can adopt them safely.
+This query layer is the single runtime data access path for analytics services.
+The functions return pandas DataFrames shaped like the original CSV workflows
+expect, so scoring, complaint mining, and simulation logic can stay unchanged.
 """
 
 import pandas as pd
@@ -97,6 +97,47 @@ def get_database_connection(db_path=DEFAULT_DATABASE_PATH):
     return get_connection(db_path)
 
 
+def _read_reviews(sql, params=None, db_path=DEFAULT_DATABASE_PATH):
+    """Run one review-row query and return CSV-compatible review columns."""
+    if params is None:
+        params = []
+
+    connection = get_database_connection(db_path)
+    try:
+        reviews_df = pd.read_sql_query(sql, connection, params=params)
+    finally:
+        connection.close()
+
+    if reviews_df.empty:
+        return _empty_dataframe(REVIEW_COLUMNS)
+
+    return reviews_df[REVIEW_COLUMNS]
+
+
+def get_all_reviews(db_path=DEFAULT_DATABASE_PATH):
+    """Return every persisted review row for analytics workflows.
+
+    SQLite is the single source of truth for runtime analytics. Ordering by
+    review rowid preserves ingestion order for migrated and uploaded datasets.
+    """
+    sql = """
+        SELECT
+            products.product_name,
+            products.clean_price,
+            reviews.rating,
+            reviews.full_review,
+            reviews.cleaned_review,
+            reviews.sentiment,
+            products.category,
+            products.product_id
+        FROM reviews
+        JOIN products ON products.product_id = reviews.product_id
+        ORDER BY reviews.rowid ASC
+    """
+
+    return _read_reviews(sql, db_path=db_path)
+
+
 def search_products(query, db_path=DEFAULT_DATABASE_PATH, limit=20):
     """Search products by partial normalized product name.
 
@@ -145,7 +186,8 @@ def search_products(query, db_path=DEFAULT_DATABASE_PATH, limit=20):
         LIMIT ?
     """
 
-    with get_database_connection(db_path) as connection:
+    connection = get_database_connection(db_path)
+    try:
         products_df = pd.read_sql_query(
             sql,
             connection,
@@ -156,6 +198,8 @@ def search_products(query, db_path=DEFAULT_DATABASE_PATH, limit=20):
                 safe_limit,
             ),
         )
+    finally:
+        connection.close()
 
     if products_df.empty:
         return _empty_dataframe(PRODUCT_COLUMNS)
@@ -190,8 +234,7 @@ def get_reviews_for_product_ids(product_ids, db_path=DEFAULT_DATABASE_PATH):
         ORDER BY products.product_name ASC, reviews.review_id ASC
     """
 
-    with get_database_connection(db_path) as connection:
-        return pd.read_sql_query(sql, connection, params=product_id_list)
+    return _read_reviews(sql, params=product_id_list, db_path=db_path)
 
 
 def get_product_reviews_by_query(query, db_path=DEFAULT_DATABASE_PATH):
@@ -240,8 +283,7 @@ def get_category_reviews(category, db_path=DEFAULT_DATABASE_PATH, limit=None):
         {limit_clause}
     """
 
-    with get_database_connection(db_path) as connection:
-        return pd.read_sql_query(sql, connection, params=params)
+    return _read_reviews(sql, params=params, db_path=db_path)
 
 
 def get_review_summary_by_product(product_ids, db_path=DEFAULT_DATABASE_PATH):
@@ -270,13 +312,17 @@ def get_review_summary_by_product(product_ids, db_path=DEFAULT_DATABASE_PATH):
         ORDER BY review_count DESC, products.product_name ASC
     """
 
-    with get_database_connection(db_path) as connection:
+    connection = get_database_connection(db_path)
+    try:
         return pd.read_sql_query(sql, connection, params=product_id_list)
+    finally:
+        connection.close()
 
 
 def get_database_overview(db_path=DEFAULT_DATABASE_PATH):
     """Return high-level database counts and distribution DataFrames."""
-    with get_database_connection(db_path) as connection:
+    connection = get_database_connection(db_path)
+    try:
         total_products = connection.execute(
             "SELECT COUNT(*) FROM products"
         ).fetchone()[0]
@@ -313,8 +359,10 @@ def get_database_overview(db_path=DEFAULT_DATABASE_PATH):
             GROUP BY dataset_sources.source_id, dataset_sources.source_name
             ORDER BY review_count DESC, dataset_sources.source_name ASC
             """,
-            connection,
-        )
+                connection,
+            )
+    finally:
+        connection.close()
 
     return {
         "total_products": total_products,

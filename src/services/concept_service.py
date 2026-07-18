@@ -2,6 +2,7 @@
 
 try:
     from src.concept_simulator import simulate_product_concept
+    from src.review_repository import DEFAULT_DATABASE_PATH, get_all_reviews
     from src.schemas.concept_schema import (
         ConceptSimulation,
         LaunchSummary,
@@ -9,6 +10,7 @@ try:
     )
 except ImportError:
     from concept_simulator import simulate_product_concept
+    from review_repository import DEFAULT_DATABASE_PATH, get_all_reviews
     from schemas.concept_schema import ConceptSimulation, LaunchSummary, PersonaSimulation
 
 
@@ -57,14 +59,32 @@ def _build_concept_simulation(result):
     )
 
 
-def simulate_concept(product_name, category, price, features, description):
+def _get_reviews_dataframe(reviews_df=None, db_path=DEFAULT_DATABASE_PATH):
+    """Return provided reviews or load persisted reviews from the repository."""
+    if reviews_df is not None:
+        return reviews_df
+
+    return get_all_reviews(db_path)
+
+
+def simulate_concept(
+    product_name,
+    category,
+    price,
+    features,
+    description,
+    reviews_df=None,
+    db_path=DEFAULT_DATABASE_PATH,
+):
     """Run the existing product concept simulator for dashboard and service callers."""
+    reviews_df = _get_reviews_dataframe(reviews_df, db_path)
     result = simulate_product_concept(
         product_name=product_name,
         category=category,
         price=price,
         features=features,
         description=description,
+        reviews_df=reviews_df,
     )
     return _build_concept_simulation(result)
 

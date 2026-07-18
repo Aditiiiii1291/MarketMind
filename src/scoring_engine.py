@@ -9,13 +9,15 @@ import argparse
 import pandas as pd
 
 try:
-    from src.config import PROCESSED_REVIEWS_PATH, PRODUCT_HEALTH_REPORT_PATH
+    from src.config import PRODUCT_HEALTH_REPORT_PATH
     from src.logger import logger
-    from src.utils.file_io import ensure_parent_dir, load_csv
+    from src.review_repository import DEFAULT_DATABASE_PATH, get_all_reviews
+    from src.utils.file_io import ensure_parent_dir
 except ImportError:
-    from config import PROCESSED_REVIEWS_PATH, PRODUCT_HEALTH_REPORT_PATH
+    from config import PRODUCT_HEALTH_REPORT_PATH
     from logger import logger
-    from utils.file_io import ensure_parent_dir, load_csv
+    from review_repository import DEFAULT_DATABASE_PATH, get_all_reviews
+    from utils.file_io import ensure_parent_dir
 
 try:
     from complaint_miner import (
@@ -35,21 +37,21 @@ except ImportError:
     )
 
 
-DEFAULT_INPUT_PATH = PROCESSED_REVIEWS_PATH
+DEFAULT_INPUT_PATH = DEFAULT_DATABASE_PATH
 DEFAULT_OUTPUT_PATH = PRODUCT_HEALTH_REPORT_PATH
 SENTIMENT_LABELS = ["negative", "neutral", "positive"]
 
 
-def load_processed_data(file_path):
-    """Load the processed review CSV file.
+def load_processed_data(db_path):
+    """Load persisted review data from SQLite.
 
     Args:
-        file_path: Path to the processed CSV file.
+        db_path: Path to the SQLite database.
 
     Returns:
         A pandas DataFrame containing processed reviews.
     """
-    return load_csv(file_path, description="Processed review CSV")
+    return get_all_reviews(db_path)
 
 
 def calculate_sentiment_distribution(product_reviews):

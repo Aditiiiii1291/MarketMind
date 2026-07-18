@@ -1,42 +1,42 @@
 """Product-oriented service functions for MarketMind workflows."""
 
 try:
-    from src.config import PROCESSED_REVIEWS_PATH
     from src.complaint_miner import get_product_reviews as _filter_product_reviews
     from src.product_comparator import (
         compare_products as _build_product_comparison,
         generate_comparison_insight,
         rank_products,
     )
+    from src.review_repository import DEFAULT_DATABASE_PATH, get_all_reviews
     from src.schemas.product_schema import (
         ProductComparison,
         ProductHealth,
         ProductSummary,
     )
-    from src.scoring_engine import analyze_product_health, load_processed_data
+    from src.scoring_engine import analyze_product_health
 except ImportError:
-    from config import PROCESSED_REVIEWS_PATH
     from complaint_miner import get_product_reviews as _filter_product_reviews
     from product_comparator import (
         compare_products as _build_product_comparison,
         generate_comparison_insight,
         rank_products,
     )
+    from review_repository import DEFAULT_DATABASE_PATH, get_all_reviews
     from schemas.product_schema import ProductComparison, ProductHealth, ProductSummary
-    from scoring_engine import analyze_product_health, load_processed_data
+    from scoring_engine import analyze_product_health
 
 
-def load_product_data(data_path=PROCESSED_REVIEWS_PATH):
-    """Load the processed review data used by product services."""
-    return load_processed_data(data_path)
+def load_product_data(db_path=DEFAULT_DATABASE_PATH):
+    """Load persisted review data for product services from SQLite."""
+    return get_all_reviews(db_path)
 
 
-def _get_reviews_dataframe(reviews_df=None, data_path=PROCESSED_REVIEWS_PATH):
-    """Return provided reviews or load the default processed dataset."""
+def _get_reviews_dataframe(reviews_df=None, db_path=DEFAULT_DATABASE_PATH):
+    """Return provided reviews or load persisted reviews from the repository."""
     if reviews_df is not None:
         return reviews_df
 
-    return load_product_data(data_path)
+    return load_product_data(db_path)
 
 
 def _build_product_health(result):
@@ -61,16 +61,16 @@ def _build_product_health(result):
     )
 
 
-def analyze_product(product_query, reviews_df=None, data_path=PROCESSED_REVIEWS_PATH):
+def analyze_product(product_query, reviews_df=None, db_path=DEFAULT_DATABASE_PATH):
     """Analyze one product by delegating to the existing health scoring engine."""
-    reviews_df = _get_reviews_dataframe(reviews_df, data_path)
+    reviews_df = _get_reviews_dataframe(reviews_df, db_path)
     result = analyze_product_health(reviews_df, product_query)
     return _build_product_health(result)
 
 
-def compare_products(product_queries, reviews_df=None, data_path=PROCESSED_REVIEWS_PATH):
+def compare_products(product_queries, reviews_df=None, db_path=DEFAULT_DATABASE_PATH):
     """Compare product queries using the existing product comparison workflow."""
-    reviews_df = _get_reviews_dataframe(reviews_df, data_path)
+    reviews_df = _get_reviews_dataframe(reviews_df, db_path)
     comparison_df = _build_product_comparison(reviews_df, product_queries)
     ranked_df = rank_products(comparison_df)
     insight = generate_comparison_insight(ranked_df)
@@ -85,20 +85,20 @@ def compare_products(product_queries, reviews_df=None, data_path=PROCESSED_REVIE
 def get_product_reviews(
     product_query,
     reviews_df=None,
-    data_path=PROCESSED_REVIEWS_PATH,
+    db_path=DEFAULT_DATABASE_PATH,
 ):
-    """Return reviews matching one product query from processed review data."""
-    reviews_df = _get_reviews_dataframe(reviews_df, data_path)
+    """Return reviews matching one product query from persisted review data."""
+    reviews_df = _get_reviews_dataframe(reviews_df, db_path)
     return _filter_product_reviews(reviews_df, product_query)
 
 
 def get_product_health(
     product_query,
     reviews_df=None,
-    data_path=PROCESSED_REVIEWS_PATH,
+    db_path=DEFAULT_DATABASE_PATH,
 ):
     """Return the existing product health analysis for one product query."""
-    return analyze_product(product_query, reviews_df=reviews_df, data_path=data_path)
+    return analyze_product(product_query, reviews_df=reviews_df, db_path=db_path)
 
 
 def get_product_summary(analysis_result):

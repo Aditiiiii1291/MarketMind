@@ -1,7 +1,7 @@
 """Dashboard preparation services for MarketMind."""
 
 try:
-    from src.config import PROCESSED_REVIEWS_PATH
+    from src.review_repository import DEFAULT_DATABASE_PATH
     from src.schemas.dashboard_schema import (
         DashboardMetrics,
         DashboardResponse,
@@ -9,7 +9,7 @@ try:
     )
     from src.services import concept_service, product_service
 except ImportError:
-    from config import PROCESSED_REVIEWS_PATH
+    from review_repository import DEFAULT_DATABASE_PATH
     from schemas.dashboard_schema import (
         DashboardMetrics,
         DashboardResponse,
@@ -18,12 +18,12 @@ except ImportError:
     from services import concept_service, product_service
 
 
-DEFAULT_DASHBOARD_DATA_PATH = PROCESSED_REVIEWS_PATH
+DEFAULT_DASHBOARD_DATA_PATH = DEFAULT_DATABASE_PATH
 
 
-def load_dashboard_data(data_path=PROCESSED_REVIEWS_PATH):
-    """Load review data for dashboard workflows."""
-    return product_service.load_product_data(data_path)
+def load_dashboard_data(db_path=DEFAULT_DATABASE_PATH):
+    """Load repository-backed review data for dashboard workflows."""
+    return product_service.load_product_data(db_path)
 
 
 def prepare_dashboard_metrics(result):
