@@ -12,3 +12,4 @@ bcrypt<4
 python-jose
 python-multipart
 python-dotenv
+google-genai

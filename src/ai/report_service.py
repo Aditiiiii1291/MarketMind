@@ -1,4 +1,6 @@
-"""Deterministic report builders for AI-ready MarketMind context."""
+"""Report builders for AI-ready MarketMind context."""
+
+from datetime import datetime, timezone
 
 try:
     from src.ai import context_builder, prompt_templates
@@ -159,3 +161,144 @@ def build_business_report_for_inputs(
         description=description,
     )
     return build_business_report(context)
+
+
+def build_product_summary_ai_for_query(product_query, comparison_queries=None):
+    """Build an optional Gemini product analysis with deterministic fallback."""
+    context = context_builder.build_product_context(product_query, comparison_queries)
+    deterministic = build_product_summary(context)
+    return _build_optional_gemini_response(
+        context=context,
+        deterministic=deterministic,
+        generate_method="generate_product_analysis",
+    )
+
+
+def build_launch_analysis_ai_for_concept(
+    product_name,
+    category,
+    price,
+    features,
+    description,
+):
+    """Build an optional Gemini launch analysis with deterministic fallback."""
+    context = context_builder.build_launch_context(
+        product_name=product_name,
+        category=category,
+        price=price,
+        features=features,
+        description=description,
+    )
+    deterministic = build_launch_analysis(context)
+    return _build_optional_gemini_response(
+        context=context,
+        deterministic=deterministic,
+        generate_method="generate_launch_analysis",
+    )
+
+
+def build_persona_summary_ai_for_concept(
+    product_name,
+    category,
+    price,
+    features,
+    description,
+):
+    """Build an optional Gemini persona report with deterministic fallback."""
+    context = context_builder.build_launch_context(
+        product_name=product_name,
+        category=category,
+        price=price,
+        features=features,
+        description=description,
+    )
+    deterministic = build_persona_summary(context)
+    return _build_optional_gemini_response(
+        context=context,
+        deterministic=deterministic,
+        generate_method="generate_persona_report",
+    )
+
+
+def build_business_report_ai_for_inputs(
+    product_query=None,
+    comparison_queries=None,
+    product_name=None,
+    category="",
+    price="",
+    features="",
+    description=None,
+):
+    """Build an optional Gemini business report with deterministic fallback."""
+    context = context_builder.build_business_context(
+        product_query=product_query,
+        comparison_queries=comparison_queries,
+        product_name=product_name,
+        category=category,
+        price=price,
+        features=features,
+        description=description,
+    )
+    deterministic = build_business_report(context)
+    return _build_optional_gemini_response(
+        context=context,
+        deterministic=deterministic,
+        generate_method="generate_business_report",
+    )
+
+
+def _build_optional_gemini_response(context, deterministic, generate_method):
+    generated_at = _utc_now()
+    client = _get_gemini_client()
+
+    if context.error:
+        return _build_deterministic_response(
+            deterministic=deterministic,
+            generated_at=generated_at,
+            fallback_reason="analysis_error",
+        )
+
+    if not client.is_available():
+        return _build_deterministic_response(
+            deterministic=deterministic,
+            generated_at=generated_at,
+            fallback_reason=client.unavailable_reason(),
+        )
+
+    result = getattr(client, generate_method)(context)
+    if result["ok"]:
+        return {
+            "source": "gemini",
+            "model": result["model"],
+            "generated_at": generated_at,
+            "analysis": result["analysis"],
+        }
+
+    return _build_deterministic_response(
+        deterministic=deterministic,
+        generated_at=generated_at,
+        fallback_reason=result.get("error", "gemini_unavailable"),
+    )
+
+
+def _build_deterministic_response(deterministic, generated_at, fallback_reason):
+    return {
+        "source": "deterministic",
+        "model": None,
+        "generated_at": generated_at,
+        "fallback_reason": fallback_reason or "gemini_unavailable",
+        "analysis": deterministic,
+    }
+
+
+def _get_gemini_client():
+    try:
+        from src.ai import gemini_client
+    except ImportError:
+        from ai import gemini_client
+
+    return gemini_client.gemini_client
+
+
+def _utc_now():
+    return datetime.now(timezone.utc).isoformat()

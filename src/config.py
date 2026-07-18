@@ -135,5 +135,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = get_int_env("MARKETMIND_ACCESS_TOKEN_EXPIRE_MINUTE
 OPENAI_API_KEY = get_env("OPENAI_API_KEY", "")
 OPENAI_MODEL = get_env("OPENAI_MODEL", "gpt-4.1-mini")
 
+GOOGLE_API_KEY = get_env("GOOGLE_API_KEY", "")
+GOOGLE_MODEL = get_env("GOOGLE_MODEL", "gemini-2.5-flash")
+
 _warn_missing_optional("OPENAI_API_KEY")
 _warn_missing_optional("OPENAI_MODEL")
