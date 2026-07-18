@@ -404,7 +404,7 @@ def main():
     }
     created_at = utc_now_iso()
 
-    with get_connection(database_path) as connection:
+    with get_connection(database_path, database_type="sqlite") as connection:
         initialize_database(connection)
         source_id = ensure_dataset_source(
             connection,

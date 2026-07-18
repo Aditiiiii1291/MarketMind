@@ -24,8 +24,10 @@ from src.config import DATABASE_PATH, MINI_ELECTRONICS_REVIEWS_PATH
 from src.database import (
     create_stable_product_id,
     create_stable_review_id,
+    execute,
     get_connection,
     initialize_database,
+    is_postgres_connection,
     normalize_product_name,
 )
 from src.logger import logger
@@ -180,7 +182,8 @@ def safe_text(value):
 
 def get_or_create_dataset_source(connection, source_name, source_path):
     """Find an existing dataset source or create a new one."""
-    existing_source = connection.execute(
+    existing_source = execute(
+        connection,
         """
         SELECT source_id
         FROM dataset_sources
@@ -193,8 +196,7 @@ def get_or_create_dataset_source(connection, source_name, source_path):
         return existing_source[0], False
 
     imported_at = datetime.now().isoformat(timespec="seconds")
-    cursor = connection.execute(
-        """
+    insert_sql = """
         INSERT INTO dataset_sources (
             source_name,
             source_path,
@@ -202,7 +204,13 @@ def get_or_create_dataset_source(connection, source_name, source_path):
             description
         )
         VALUES (?, ?, ?, ?)
-        """,
+    """
+    if is_postgres_connection(connection):
+        insert_sql += " RETURNING source_id"
+
+    cursor = execute(
+        connection,
+        insert_sql,
         (
             source_name,
             source_path,
@@ -210,6 +218,8 @@ def get_or_create_dataset_source(connection, source_name, source_path):
             f"External review CSV imported from {source_path}",
         ),
     )
+    if is_postgres_connection(connection):
+        return cursor.fetchone()[0], True
 
     return cursor.lastrowid, True
 
@@ -219,7 +229,8 @@ def get_or_create_product(connection, row, source_id, created_at):
     product_name = row["product_name"]
     normalized_name = normalize_product_name(product_name)
 
-    existing_product = connection.execute(
+    existing_product = execute(
+        connection,
         """
         SELECT product_id
         FROM products
@@ -233,7 +244,8 @@ def get_or_create_product(connection, row, source_id, created_at):
         return existing_product[0], False
 
     product_id = create_stable_product_id(normalized_name)
-    connection.execute(
+    execute(
+        connection,
         """
         INSERT INTO products (
             product_id,
@@ -269,9 +281,8 @@ def insert_review(connection, row, product_id, source_id, source_name, created_a
         source_name,
     )
 
-    cursor = connection.execute(
-        """
-        INSERT OR IGNORE INTO reviews (
+    insert_sql = """
+        INSERT INTO reviews (
             review_id,
             product_id,
             rating,
@@ -282,7 +293,15 @@ def insert_review(connection, row, product_id, source_id, source_name, created_a
             created_at
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
+    """
+    if is_postgres_connection(connection):
+        insert_sql += " ON CONFLICT (review_id) DO NOTHING"
+    else:
+        insert_sql = insert_sql.replace("INSERT INTO reviews", "INSERT OR IGNORE INTO reviews")
+
+    cursor = execute(
+        connection,
+        insert_sql,
         (
             review_id,
             product_id,

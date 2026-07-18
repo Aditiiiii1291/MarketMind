@@ -4,7 +4,10 @@ from fastapi import FastAPI
 
 from api.auth import auth_router
 from api.routers import analysis, concepts, dashboard, products, uploads
+from src.config import validate_database_settings
 
+
+validate_database_settings()
 
 app = FastAPI(
     title="MarketMind API",

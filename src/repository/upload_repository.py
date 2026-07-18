@@ -1,32 +1,28 @@
-"""SQLite repository helpers for uploaded datasets."""
+"""Repository helpers for uploaded dataset metadata."""
 
 from datetime import datetime, timezone
 
 try:
     from src.config import DATABASE_PATH
-    from src.database import get_connection
+    from src.database import (
+        execute,
+        get_connection,
+        initialize_database,
+        is_postgres_connection,
+    )
 except ImportError:
     from config import DATABASE_PATH
-    from database import get_connection
+    from database import (
+        execute,
+        get_connection,
+        initialize_database,
+        is_postgres_connection,
+    )
 
 
 def initialize_upload_table(connection):
     """Create the uploads table if it does not exist."""
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS uploads (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            filename TEXT NOT NULL,
-            rows_processed INTEGER NOT NULL,
-            products_added INTEGER NOT NULL,
-            reviews_added INTEGER NOT NULL,
-            duplicates_skipped INTEGER NOT NULL,
-            uploaded_at TEXT NOT NULL
-        )
-        """
-    )
-    connection.commit()
+    initialize_database(connection)
 
 
 def _row_to_dict(row):
@@ -66,8 +62,7 @@ def create_upload_record(
     uploaded_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     with _get_connection(db_path) as connection:
-        cursor = connection.execute(
-            """
+        insert_sql = """
             INSERT INTO uploads (
                 user_id,
                 filename,
@@ -78,7 +73,13 @@ def create_upload_record(
                 uploaded_at
             )
             VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
+        """
+        if is_postgres_connection(connection):
+            insert_sql += " RETURNING id"
+
+        cursor = execute(
+            connection,
+            insert_sql,
             (
                 user_id,
                 filename,
@@ -89,7 +90,10 @@ def create_upload_record(
                 uploaded_at,
             ),
         )
-        upload_id = cursor.lastrowid
+        if is_postgres_connection(connection):
+            upload_id = cursor.fetchone()[0]
+        else:
+            upload_id = cursor.lastrowid
 
     return get_upload_by_id(upload_id, user_id=user_id, db_path=db_path)
 
@@ -97,7 +101,8 @@ def create_upload_record(
 def get_upload_history(user_id, db_path=DATABASE_PATH):
     """Return upload records for one user, newest first."""
     with _get_connection(db_path) as connection:
-        rows = connection.execute(
+        rows = execute(
+            connection,
             """
             SELECT
                 id,
@@ -121,7 +126,8 @@ def get_upload_history(user_id, db_path=DATABASE_PATH):
 def get_upload_by_id(upload_id, user_id, db_path=DATABASE_PATH):
     """Return one upload record for a user or None when it does not exist."""
     with _get_connection(db_path) as connection:
-        row = connection.execute(
+        row = execute(
+            connection,
             """
             SELECT
                 id,

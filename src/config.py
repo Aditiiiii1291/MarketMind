@@ -62,6 +62,31 @@ def _warn_missing_optional(name):
         print(f"Warning: optional environment variable {name} is not configured.")
 
 
+def validate_database_settings(database_type=None, database_url=None):
+    """Validate database configuration without opening a database connection."""
+    if database_type is None:
+        database_type = DATABASE_TYPE
+    if database_url is None:
+        database_url = DATABASE_URL
+
+    normalized_type = str(database_type or "sqlite").strip().lower()
+    if normalized_type == "postgresql":
+        normalized_type = "postgres"
+
+    if normalized_type not in {"sqlite", "postgres"}:
+        raise RuntimeError(
+            "Unsupported MARKETMIND_DATABASE_TYPE. "
+            "Expected 'sqlite' or 'postgres'."
+        )
+    if normalized_type == "postgres" and str(database_url or "").strip() == "":
+        raise RuntimeError(
+            "MARKETMIND_DATABASE_URL is required when "
+            "MARKETMIND_DATABASE_TYPE=postgres."
+        )
+
+    return normalized_type
+
+
 APP_ENV = get_env("MARKETMIND_ENV", "development")
 
 DATA_DIR = get_path_env("MARKETMIND_DATA_DIR", PROJECT_ROOT / "data")
@@ -73,6 +98,8 @@ PROCESSED_DATA_DIR = get_path_env(
 REPORTS_DIR = get_reports_path()
 MODELS_DIR = get_path_env("MARKETMIND_MODEL_DIR", PROJECT_ROOT / "models")
 
+DATABASE_TYPE = get_env("MARKETMIND_DATABASE_TYPE", "sqlite")
+DATABASE_URL = get_env("MARKETMIND_DATABASE_URL", "")
 DATABASE_PATH = get_database_path()
 RAW_REVIEWS_PATH = get_path_env(
     "MARKETMIND_RAW_REVIEWS_PATH",

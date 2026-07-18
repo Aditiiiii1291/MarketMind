@@ -16,3 +16,4 @@ google-genai
 pytest
 pytest-cov
 httpx
+psycopg[binary]

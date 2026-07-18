@@ -1,4 +1,4 @@
-"""Read-only SQLite repository functions for MarketMind reviews.
+"""Read-only repository functions for MarketMind reviews.
 
 This query layer is the single runtime data access path for analytics services.
 The functions return pandas DataFrames shaped like the original CSV workflows
@@ -9,11 +9,23 @@ import pandas as pd
 
 try:
     from src.config import DATABASE_PATH
-    from src.database import get_connection, normalize_product_name
+    from src.database import (
+        execute,
+        get_connection,
+        get_database_type,
+        normalize_product_name,
+        read_sql_query,
+    )
     from src.utils.file_io import require_file
 except ImportError:
     from config import DATABASE_PATH
-    from database import get_connection, normalize_product_name
+    from database import (
+        execute,
+        get_connection,
+        get_database_type,
+        normalize_product_name,
+        read_sql_query,
+    )
     from utils.file_io import require_file
 
 
@@ -81,18 +93,19 @@ def _make_dataframe_console_safe(df):
 
 
 def get_database_connection(db_path=DEFAULT_DATABASE_PATH):
-    """Open the local MarketMind SQLite database.
+    """Open the configured MarketMind database.
 
     Raises:
-        FileNotFoundError: If the database has not been created yet.
+        FileNotFoundError: If SQLite is selected and the database is missing.
     """
-    try:
-        db_path = require_file(db_path, "SQLite database")
-    except FileNotFoundError as error:
-        raise FileNotFoundError(
-            f"{error}. "
-            "Run scripts/migrate_csv_to_sqlite.py first."
-        ) from error
+    if get_database_type() == "sqlite":
+        try:
+            db_path = require_file(db_path, "SQLite database")
+        except FileNotFoundError as error:
+            raise FileNotFoundError(
+                f"{error}. "
+                "Run scripts/migrate_csv_to_sqlite.py first."
+            ) from error
 
     return get_connection(db_path)
 
@@ -104,7 +117,7 @@ def _read_reviews(sql, params=None, db_path=DEFAULT_DATABASE_PATH):
 
     connection = get_database_connection(db_path)
     try:
-        reviews_df = pd.read_sql_query(sql, connection, params=params)
+        reviews_df = read_sql_query(sql, connection, params=params)
     finally:
         connection.close()
 
@@ -117,9 +130,15 @@ def _read_reviews(sql, params=None, db_path=DEFAULT_DATABASE_PATH):
 def get_all_reviews(db_path=DEFAULT_DATABASE_PATH):
     """Return every persisted review row for analytics workflows.
 
-    SQLite is the single source of truth for runtime analytics. Ordering by
-    review rowid preserves ingestion order for migrated and uploaded datasets.
+    The configured database is the single source of truth for runtime analytics.
+    SQLite keeps current rowid ordering; PostgreSQL uses stable timestamp/id
+    ordering because it has no rowid.
     """
+    if get_database_type() == "postgres":
+        order_clause = "reviews.created_at ASC, reviews.review_id ASC"
+    else:
+        order_clause = "reviews.rowid ASC"
+
     sql = """
         SELECT
             products.product_name,
@@ -132,8 +151,8 @@ def get_all_reviews(db_path=DEFAULT_DATABASE_PATH):
             products.product_id
         FROM reviews
         JOIN products ON products.product_id = reviews.product_id
-        ORDER BY reviews.rowid ASC
-    """
+        ORDER BY {order_clause}
+    """.format(order_clause=order_clause)
 
     return _read_reviews(sql, db_path=db_path)
 
@@ -188,7 +207,7 @@ def search_products(query, db_path=DEFAULT_DATABASE_PATH, limit=20):
 
     connection = get_database_connection(db_path)
     try:
-        products_df = pd.read_sql_query(
+        products_df = read_sql_query(
             sql,
             connection,
             params=(
@@ -314,7 +333,7 @@ def get_review_summary_by_product(product_ids, db_path=DEFAULT_DATABASE_PATH):
 
     connection = get_database_connection(db_path)
     try:
-        return pd.read_sql_query(sql, connection, params=product_id_list)
+        return read_sql_query(sql, connection, params=product_id_list)
     finally:
         connection.close()
 
@@ -323,14 +342,16 @@ def get_database_overview(db_path=DEFAULT_DATABASE_PATH):
     """Return high-level database counts and distribution DataFrames."""
     connection = get_database_connection(db_path)
     try:
-        total_products = connection.execute(
+        total_products = execute(
+            connection,
             "SELECT COUNT(*) FROM products"
         ).fetchone()[0]
-        total_reviews = connection.execute(
+        total_reviews = execute(
+            connection,
             "SELECT COUNT(*) FROM reviews"
         ).fetchone()[0]
 
-        category_distribution = pd.read_sql_query(
+        category_distribution = read_sql_query(
             """
             SELECT category, COUNT(*) AS product_count
             FROM products
@@ -339,7 +360,7 @@ def get_database_overview(db_path=DEFAULT_DATABASE_PATH):
             """,
             connection,
         )
-        sentiment_distribution = pd.read_sql_query(
+        sentiment_distribution = read_sql_query(
             """
             SELECT sentiment, COUNT(*) AS review_count
             FROM reviews
@@ -348,7 +369,7 @@ def get_database_overview(db_path=DEFAULT_DATABASE_PATH):
             """,
             connection,
         )
-        source_distribution = pd.read_sql_query(
+        source_distribution = read_sql_query(
             """
             SELECT
                 dataset_sources.source_id,
@@ -359,8 +380,8 @@ def get_database_overview(db_path=DEFAULT_DATABASE_PATH):
             GROUP BY dataset_sources.source_id, dataset_sources.source_name
             ORDER BY review_count DESC, dataset_sources.source_name ASC
             """,
-                connection,
-            )
+            connection,
+        )
     finally:
         connection.close()
 
