@@ -297,44 +297,45 @@ def parse_args():
 
 
 def print_product_health_result(result):
-    """Print a readable product health analysis result."""
-    print("Matched product name(s):")
+    """Log a readable product health analysis result."""
+    logger.info("Matched product name(s):")
     for product_name in result["matched_product_names"]:
         display_product_name = (
             str(product_name).encode("ascii", errors="replace").decode("ascii")
         )
-        print(f"- {display_product_name}")
+        logger.info("- %s", display_product_name)
 
     metrics = result["metrics"]
-    print(f"\nReview count: {metrics['review_count']}")
-    print(f"Average rating: {metrics['average_rating']}")
+    logger.info("Review count: %s", metrics["review_count"])
+    logger.info("Average rating: %s", metrics["average_rating"])
 
-    print("\nSentiment distribution:")
+    logger.info("Sentiment distribution:")
     for sentiment, values in result["sentiment_distribution"].items():
-        print(
-            f"- {sentiment}: {values['count']} reviews "
-            f"({values['percentage']}%)"
+        logger.info(
+            "- %s: %s reviews (%s%%)",
+            sentiment,
+            values["count"],
+            values["percentage"],
         )
 
-    print(f"\nHealth score: {result['health_score']}")
-    print(f"Health label: {result['health_label']}")
+    logger.info("Health score: %s", result["health_score"])
+    logger.info("Health label: %s", result["health_label"])
 
-    print("\nTop complaint categories:")
     if result["category_summary"].empty:
-        print("No complaint categories found.")
+        logger.info("No complaint categories found.")
     else:
-        print(result["category_summary"])
+        logger.info("Top complaint categories:\n%s", result["category_summary"])
 
-    print("\nRecommendations:")
+    logger.info("Recommendations:")
     for recommendation in result["recommendations"]:
-        print(f"- {recommendation}")
+        logger.info("- %s", recommendation)
 
 
 if __name__ == "__main__":
     args = parse_args()
 
     if args.product.strip() == "":
-        print("Please provide a non-empty product query.")
+        logger.error("Please provide a non-empty product query.")
     else:
         try:
             reviews_df = load_processed_data(DEFAULT_INPUT_PATH)
@@ -345,8 +346,8 @@ if __name__ == "__main__":
         analysis_result = analyze_product_health(reviews_df, args.product)
 
         if "error" in analysis_result:
-            print(analysis_result["error"])
+            logger.error(analysis_result["error"])
         else:
             print_product_health_result(analysis_result)
             save_product_health_report(analysis_result, DEFAULT_OUTPUT_PATH)
-            print(f"\nProduct health report saved to: {DEFAULT_OUTPUT_PATH}")
+            logger.info("Product health report saved to: %s", DEFAULT_OUTPUT_PATH)

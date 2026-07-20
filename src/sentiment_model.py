@@ -75,18 +75,13 @@ def train_sentiment_model(X_train, y_train):
 
 
 def evaluate_model(model, vectorizer, X_test, y_test):
-    """Evaluate the trained model and print common classification metrics."""
+    """Evaluate the trained model and log common classification metrics."""
     X_test_tfidf = vectorizer.transform(X_test)
     y_pred = model.predict(X_test_tfidf)
 
-    print("Accuracy Score:")
-    print(accuracy_score(y_test, y_pred))
-
-    print("\nClassification Report:")
-    print(classification_report(y_test, y_pred))
-
-    print("\nConfusion Matrix:")
-    print(confusion_matrix(y_test, y_pred))
+    logger.info("Accuracy Score: %s", accuracy_score(y_test, y_pred))
+    logger.info("Classification Report:\n%s", classification_report(y_test, y_pred))
+    logger.info("Confusion Matrix:\n%s", confusion_matrix(y_test, y_pred))
 
 
 def save_model_artifacts(model, vectorizer):
@@ -97,8 +92,8 @@ def save_model_artifacts(model, vectorizer):
     joblib.dump(model, model_path)
     joblib.dump(vectorizer, vectorizer_path)
 
-    print(f"\nSaved model to: {model_path}")
-    print(f"Saved vectorizer to: {vectorizer_path}")
+    logger.info("Saved model to: %s", model_path)
+    logger.info("Saved vectorizer to: %s", vectorizer_path)
 
 
 def predict_sentiment(
@@ -141,8 +136,8 @@ if __name__ == "__main__":
         "okay product average quality",
     ]
 
-    print("\nExample Predictions:")
+    logger.info("Example Predictions:")
     for review in example_reviews:
         sentiment = predict_sentiment(review)
-        print(f"Review: {review}")
-        print(f"Predicted sentiment: {sentiment}\n")
+        logger.info("Review: %s", review)
+        logger.info("Predicted sentiment: %s", sentiment)

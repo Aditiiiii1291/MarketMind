@@ -20,6 +20,20 @@ except ImportError:
     )
 
 
+UPLOAD_SELECT_SQL = """
+    SELECT
+        id,
+        user_id,
+        filename,
+        rows_processed,
+        products_added,
+        reviews_added,
+        duplicates_skipped,
+        uploaded_at
+    FROM uploads
+"""
+
+
 def initialize_upload_table(connection):
     """Create the uploads table if it does not exist."""
     initialize_database(connection)
@@ -103,17 +117,8 @@ def get_upload_history(user_id, db_path=DATABASE_PATH):
     with _get_connection(db_path) as connection:
         rows = execute(
             connection,
-            """
-            SELECT
-                id,
-                user_id,
-                filename,
-                rows_processed,
-                products_added,
-                reviews_added,
-                duplicates_skipped,
-                uploaded_at
-            FROM uploads
+            UPLOAD_SELECT_SQL
+            + """
             WHERE user_id = ?
             ORDER BY uploaded_at DESC, id DESC
             """,
@@ -128,17 +133,8 @@ def get_upload_by_id(upload_id, user_id, db_path=DATABASE_PATH):
     with _get_connection(db_path) as connection:
         row = execute(
             connection,
-            """
-            SELECT
-                id,
-                user_id,
-                filename,
-                rows_processed,
-                products_added,
-                reviews_added,
-                duplicates_skipped,
-                uploaded_at
-            FROM uploads
+            UPLOAD_SELECT_SQL
+            + """
             WHERE id = ? AND user_id = ?
             """,
             (upload_id, user_id),

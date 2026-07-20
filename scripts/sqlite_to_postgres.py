@@ -225,14 +225,15 @@ def verify_counts(summary):
 
 
 def print_summary(summary):
-    """Print migration counts for each table."""
-    print("SQLite to PostgreSQL migration summary")
-    print("-------------------------------------")
+    """Log migration counts for each table."""
+    logger.info("SQLite to PostgreSQL migration summary")
     for table_name, table_summary in summary.items():
-        print(
-            f"{table_name}: sqlite={table_summary['sqlite_count']}, "
-            f"inserted={table_summary['postgres_inserted']}, "
-            f"postgres={table_summary['postgres_count']}"
+        logger.info(
+            "%s: sqlite=%s, inserted=%s, postgres=%s",
+            table_name,
+            table_summary["sqlite_count"],
+            table_summary["postgres_inserted"],
+            table_summary["postgres_count"],
         )
 
 
@@ -244,11 +245,10 @@ def main():
         verify_counts(summary)
     except Exception as error:
         logger.error(error)
-        print(error)
         return 1
 
     print_summary(summary)
-    print("Row count verification passed.")
+    logger.info("Row count verification passed.")
     return 0
 
 

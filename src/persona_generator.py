@@ -441,17 +441,12 @@ if __name__ == "__main__":
     clustered_reviews = attach_clusters_to_reviews(reviews_df, clustered_personas_df)
     persona_profiles = build_persona_profiles(clustered_reviews, persona_summary)
 
-    print("Review Persona Summary:")
-    print(persona_summary)
-
-    print("\nTop Keywords by Persona:")
-    print(persona_keywords)
-
-    print("\nPersona Profiles:")
-    print(persona_profiles)
+    logger.info("Review Persona Summary:\n%s", persona_summary)
+    logger.info("Top Keywords by Persona:\n%s", persona_keywords)
+    logger.info("Persona Profiles:\n%s", persona_profiles)
 
     save_persona_report(persona_summary, persona_keywords, DEFAULT_OUTPUT_PATH)
-    print(f"\nReview persona report saved to: {DEFAULT_OUTPUT_PATH}")
+    logger.info("Review persona report saved to: %s", DEFAULT_OUTPUT_PATH)
 
     save_persona_profiles(persona_profiles, DEFAULT_PROFILE_OUTPUT_PATH)
-    print(f"Persona profiles saved to: {DEFAULT_PROFILE_OUTPUT_PATH}")
+    logger.info("Persona profiles saved to: %s", DEFAULT_PROFILE_OUTPUT_PATH)

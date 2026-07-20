@@ -337,39 +337,38 @@ def fetch_top_products_by_review_count(connection, limit=10):
 
 
 def print_summary(total_stats, counts, connection):
-    """Print migration and data-quality summaries."""
-    print("\nMigration summary")
-    print("-----------------")
-    print(f"Rows read: {total_stats['rows_read']}")
-    print(f"Valid rows processed: {total_stats['valid_rows']}")
-    print(f"Products inserted: {total_stats['products_inserted']}")
-    print(f"Reviews inserted: {total_stats['reviews_inserted']}")
-    print(f"Duplicate reviews skipped: {total_stats['duplicate_reviews']}")
-    print(f"Invalid rows skipped: {total_stats['invalid_rows']}")
-    print(f"Final total products: {counts['products']}")
-    print(f"Final total reviews: {counts['reviews']}")
+    """Log migration and data-quality summaries."""
+    logger.info("Migration summary")
+    logger.info("Rows read: %s", total_stats["rows_read"])
+    logger.info("Valid rows processed: %s", total_stats["valid_rows"])
+    logger.info("Products inserted: %s", total_stats["products_inserted"])
+    logger.info("Reviews inserted: %s", total_stats["reviews_inserted"])
+    logger.info("Duplicate reviews skipped: %s", total_stats["duplicate_reviews"])
+    logger.info("Invalid rows skipped: %s", total_stats["invalid_rows"])
+    logger.info("Final total products: %s", counts["products"])
+    logger.info("Final total reviews: %s", counts["reviews"])
 
-    print("\nData-quality checks")
-    print("-------------------")
-    print(f"Total products: {counts['products']}")
-    print(f"Total reviews: {counts['reviews']}")
+    logger.info("Data-quality checks")
+    logger.info("Total products: %s", counts["products"])
+    logger.info("Total reviews: %s", counts["reviews"])
 
-    print("\nSentiment distribution:")
+    logger.info("Sentiment distribution:")
     for sentiment, review_count in fetch_sentiment_distribution(connection):
-        print(f"- {sentiment}: {review_count}")
+        logger.info("- %s: %s", sentiment, review_count)
 
-    print(f"\nRating null count: {fetch_rating_null_count(connection)}")
-    print(
+    logger.info("Rating null count: %s", fetch_rating_null_count(connection))
+    logger.info(
         "Uncategorized product count: "
-        f"{fetch_uncategorized_product_count(connection)}"
+        "%s",
+        fetch_uncategorized_product_count(connection),
     )
 
-    print("\nTop 10 products by review count:")
+    logger.info("Top 10 products by review count:")
     for product_name, review_count in fetch_top_products_by_review_count(connection):
         safe_product_name = (
             str(product_name).encode("ascii", errors="replace").decode("ascii")
         )
-        print(f"- {safe_product_name}: {review_count}")
+        logger.info("- %s: %s", safe_product_name, review_count)
 
 
 def main():
@@ -379,19 +378,17 @@ def main():
         input_path = require_file(args.input, "Processed CSV")
     except FileNotFoundError as error:
         logger.error(error)
-        print(error)
         return 1
     database_path = Path(args.database)
 
     if args.reset and database_path.exists():
-        print(f"WARNING: --reset enabled. Deleting existing database: {database_path}")
+        logger.warning("--reset enabled. Deleting existing database: %s", database_path)
         database_path.unlink()
 
     try:
         validate_csv_columns(input_path)
     except ValueError as error:
         logger.error(error)
-        print(error)
         return 1
 
     total_stats = {

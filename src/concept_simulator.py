@@ -768,22 +768,21 @@ def parse_args():
 
 
 def print_simulation_result(result):
-    """Print a readable CLI summary for a concept simulation."""
+    """Log a readable CLI summary for a concept simulation."""
     if "error" in result:
-        print(result["error"])
+        logger.error(result["error"])
         return
 
-    print("Product Concept Summary:")
-    print(f"Name: {result['product_name']}")
-    print(f"Category: {result['category']}")
-    print(f"Price: {result['price']}")
-    print(f"Features: {result['features']}")
-    print(f"Description: {result['description']}")
-    print(f"Simulation note: {result['simulation_note']}")
+    logger.info("Product Concept Summary:")
+    logger.info("Name: %s", result["product_name"])
+    logger.info("Category: %s", result["category"])
+    logger.info("Price: %s", result["price"])
+    logger.info("Features: %s", result["features"])
+    logger.info("Description: %s", result["description"])
+    logger.info("Simulation note: %s", result["simulation_note"])
 
-    print(f"\nSimilar historical review count: {result['similar_review_count']}")
+    logger.info("Similar historical review count: %s", result["similar_review_count"])
 
-    print("\nPersona Simulation Table:")
     display_columns = [
         "persona_name",
         "review_count_used",
@@ -792,14 +791,17 @@ def print_simulation_result(result):
         "confidence",
         "persona_response",
     ]
-    print(result["persona_simulations"][display_columns])
+    logger.info(
+        "Persona Simulation Table:\n%s",
+        result["persona_simulations"][display_columns],
+    )
 
-    print(f"\nLaunch score: {result['launch_score']}")
-    print(f"Launch label: {result['launch_label']}")
+    logger.info("Launch score: %s", result["launch_score"])
+    logger.info("Launch label: %s", result["launch_label"])
 
-    print("\nRecommendations:")
+    logger.info("Recommendations:")
     for recommendation in result["recommendations"]:
-        print(f"- {recommendation}")
+        logger.info("- %s", recommendation)
 
 
 if __name__ == "__main__":
@@ -825,4 +827,7 @@ if __name__ == "__main__":
             logger.error(error)
             raise SystemExit(1)
 
-        print(f"\nConcept simulation report saved to: {resolve_project_path(args.output)}")
+        logger.info(
+            "Concept simulation report saved to: %s",
+            resolve_project_path(args.output),
+        )

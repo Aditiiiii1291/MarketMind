@@ -22,6 +22,12 @@ except ImportError:
     )
 
 
+USER_SELECT_SQL = """
+    SELECT id, username, email, password_hash, created_at
+    FROM users
+"""
+
+
 def initialize_user_table(connection):
     """Create the users table if it does not exist."""
     initialize_database(connection)
@@ -83,9 +89,8 @@ def get_user_by_id(user_id, db_path=DATABASE_PATH):
     with _get_connection(db_path) as connection:
         row = execute(
             connection,
-            """
-            SELECT id, username, email, password_hash, created_at
-            FROM users
+            USER_SELECT_SQL
+            + """
             WHERE id = ?
             """,
             (user_id,),
@@ -99,9 +104,8 @@ def get_user_by_email(email, db_path=DATABASE_PATH):
     with _get_connection(db_path) as connection:
         row = execute(
             connection,
-            """
-            SELECT id, username, email, password_hash, created_at
-            FROM users
+            USER_SELECT_SQL
+            + """
             WHERE email = ?
             """,
             (email,),
@@ -115,9 +119,8 @@ def get_user_by_username(username, db_path=DATABASE_PATH):
     with _get_connection(db_path) as connection:
         row = execute(
             connection,
-            """
-            SELECT id, username, email, password_hash, created_at
-            FROM users
+            USER_SELECT_SQL
+            + """
             WHERE username = ?
             """,
             (username,),

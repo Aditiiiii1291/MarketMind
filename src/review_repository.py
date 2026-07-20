@@ -16,6 +16,7 @@ try:
         normalize_product_name,
         read_sql_query,
     )
+    from src.logger import logger
     from src.utils.file_io import require_file
 except ImportError:
     from config import DATABASE_PATH
@@ -26,6 +27,7 @@ except ImportError:
         normalize_product_name,
         read_sql_query,
     )
+    from logger import logger
     from utils.file_io import require_file
 
 
@@ -56,6 +58,19 @@ SUMMARY_COLUMNS = [
     "neutral_review_count",
     "positive_review_count",
 ]
+REVIEW_SELECT_SQL = """
+        SELECT
+            products.product_name,
+            products.clean_price,
+            reviews.rating,
+            reviews.full_review,
+            reviews.cleaned_review,
+            reviews.sentiment,
+            products.category,
+            products.product_id
+        FROM reviews
+        JOIN products ON products.product_id = reviews.product_id
+"""
 
 
 def _empty_dataframe(columns):
@@ -139,20 +154,10 @@ def get_all_reviews(db_path=DEFAULT_DATABASE_PATH):
     else:
         order_clause = "reviews.rowid ASC"
 
-    sql = """
-        SELECT
-            products.product_name,
-            products.clean_price,
-            reviews.rating,
-            reviews.full_review,
-            reviews.cleaned_review,
-            reviews.sentiment,
-            products.category,
-            products.product_id
-        FROM reviews
-        JOIN products ON products.product_id = reviews.product_id
+    sql = f"""
+        {REVIEW_SELECT_SQL}
         ORDER BY {order_clause}
-    """.format(order_clause=order_clause)
+    """
 
     return _read_reviews(sql, db_path=db_path)
 
@@ -238,17 +243,7 @@ def get_reviews_for_product_ids(product_ids, db_path=DEFAULT_DATABASE_PATH):
 
     placeholders = ", ".join(["?"] * len(product_id_list))
     sql = f"""
-        SELECT
-            products.product_name,
-            products.clean_price,
-            reviews.rating,
-            reviews.full_review,
-            reviews.cleaned_review,
-            reviews.sentiment,
-            products.category,
-            products.product_id
-        FROM reviews
-        JOIN products ON products.product_id = reviews.product_id
+        {REVIEW_SELECT_SQL}
         WHERE reviews.product_id IN ({placeholders})
         ORDER BY products.product_name ASC, reviews.review_id ASC
     """
@@ -286,17 +281,7 @@ def get_category_reviews(category, db_path=DEFAULT_DATABASE_PATH, limit=None):
         params.append(safe_limit)
 
     sql = f"""
-        SELECT
-            products.product_name,
-            products.clean_price,
-            reviews.rating,
-            reviews.full_review,
-            reviews.cleaned_review,
-            reviews.sentiment,
-            products.category,
-            products.product_id
-        FROM reviews
-        JOIN products ON products.product_id = reviews.product_id
+        {REVIEW_SELECT_SQL}
         WHERE products.category = ?
         ORDER BY products.product_name ASC, reviews.review_id ASC
         {limit_clause}
@@ -395,32 +380,36 @@ def get_database_overview(db_path=DEFAULT_DATABASE_PATH):
 
 
 def main():
-    """Print a small read-only repository demo."""
+    """Log a small read-only repository demo."""
     overview = get_database_overview()
-    print("Database overview")
-    print("-----------------")
-    print(f"Total products: {overview['total_products']}")
-    print(f"Total reviews: {overview['total_reviews']}")
+    logger.info("Database overview")
+    logger.info("Total products: %s", overview["total_products"])
+    logger.info("Total reviews: %s", overview["total_reviews"])
 
-    print("\nCategory distribution:")
-    print(overview["category_distribution"].to_string(index=False))
+    logger.info(
+        "Category distribution:\n%s",
+        overview["category_distribution"].to_string(index=False),
+    )
 
-    print("\nSentiment distribution:")
-    print(overview["sentiment_distribution"].to_string(index=False))
+    logger.info(
+        "Sentiment distribution:\n%s",
+        overview["sentiment_distribution"].to_string(index=False),
+    )
 
-    print("\nSource distribution:")
-    print(overview["source_distribution"].to_string(index=False))
+    logger.info(
+        "Source distribution:\n%s",
+        overview["source_distribution"].to_string(index=False),
+    )
 
-    print("\nSearch: AWC-38")
+    logger.info("Search: AWC-38")
     matched_products_df, product_reviews_df = get_product_reviews_by_query("AWC-38")
-    print("\nMatched products:")
     if matched_products_df.empty:
-        print("No products matched.")
+        logger.info("No products matched.")
     else:
         display_products_df = _make_dataframe_console_safe(matched_products_df)
-        print(display_products_df.to_string(index=False))
+        logger.info("Matched products:\n%s", display_products_df.to_string(index=False))
 
-    print(f"\nTotal reviews returned for match: {len(product_reviews_df)}")
+    logger.info("Total reviews returned for match: %s", len(product_reviews_df))
 
 
 if __name__ == "__main__":

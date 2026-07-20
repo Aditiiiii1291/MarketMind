@@ -5,6 +5,11 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+try:
+    from src.logger import logger
+except ImportError:
+    from logger import logger
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ENV_FILE_PATH = PROJECT_ROOT / ".env"
@@ -57,9 +62,9 @@ def get_reports_path():
 
 
 def _warn_missing_optional(name):
-    """Print a friendly warning when an optional variable is not configured."""
+    """Log a friendly warning when an optional variable is not configured."""
     if not get_env(name):
-        print(f"Warning: optional environment variable {name} is not configured.")
+        logger.warning("Optional environment variable is not configured: %s", name)
 
 
 def validate_database_settings(database_type=None, database_url=None):

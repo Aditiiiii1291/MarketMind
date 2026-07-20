@@ -144,15 +144,16 @@ def get_product_reviews(df, product_name):
         matching_reviews = df[partial_matches].copy()
 
         if not matching_reviews.empty:
-            print("Matched product names:")
             matched_product_names = matching_reviews["product_name"].dropna().unique()
+            display_product_names = []
             for matched_product_name in matched_product_names:
                 display_product_name = (
                     str(matched_product_name)
                     .encode("ascii", errors="replace")
                     .decode("ascii")
                 )
-                print(f"- {display_product_name}")
+                display_product_names.append(display_product_name)
+            logger.info("Matched product names: %s", ", ".join(display_product_names))
 
     return matching_reviews
 
@@ -365,27 +366,30 @@ if __name__ == "__main__":
         ) = analyze_product_complaints(reviews_df, args.product, top_n=15)
 
         if product_reviews_df.empty:
-            print(f'No reviews found for product: "{args.product}"')
+            logger.info('No reviews found for product: "%s"', args.product)
         else:
-            print(f'Product: "{args.product}"')
-            print(f"Total reviews: {len(product_reviews_df)}")
-            print(f"Negative reviews: {len(negative_product_reviews_df)}")
+            logger.info('Product: "%s"', args.product)
+            logger.info("Total reviews: %s", len(product_reviews_df))
+            logger.info("Negative reviews: %s", len(negative_product_reviews_df))
 
             if negative_product_reviews_df.empty:
-                print("\nNo negative reviews found for this product.")
+                logger.info("No negative reviews found for this product.")
             elif categorized_complaints_df.empty:
-                print("\nNo usable complaint phrases found for this product.")
+                logger.info("No usable complaint phrases found for this product.")
             else:
-                print("\nTop categorized complaint phrases for this product:")
-                print(categorized_complaints_df)
+                logger.info(
+                    "Top categorized complaint phrases for this product:\n%s",
+                    categorized_complaints_df,
+                )
 
-                print("\nProduct complaint category summary:")
-                print(category_summary_df)
+                logger.info(
+                    "Product complaint category summary:\n%s",
+                    category_summary_df,
+                )
     else:
         top_products_df = list_top_products(reviews_df, top_n=10)
 
-        print("Top 10 products by review count:")
-        print(top_products_df)
+        logger.info("Top 10 products by review count:\n%s", top_products_df)
 
         negative_reviews_df = get_negative_reviews(reviews_df)
         top_complaints_df = extract_top_complaints(negative_reviews_df, top_n=20)
@@ -393,16 +397,17 @@ if __name__ == "__main__":
         category_summary_df = build_category_summary(categorized_complaints_df)
 
         if categorized_complaints_df.empty:
-            print("\nNo usable complaint phrases found for overall analysis.")
+            logger.info("No usable complaint phrases found for overall analysis.")
         else:
-            print("\nCategorized complaint phrases:")
-            print(categorized_complaints_df)
+            logger.info("Categorized complaint phrases:\n%s", categorized_complaints_df)
 
-            print("\nComplaint category summary:")
-            print(category_summary_df)
+            logger.info("Complaint category summary:\n%s", category_summary_df)
 
         save_complaint_report(categorized_complaints_df, DEFAULT_OUTPUT_PATH)
         save_category_summary(category_summary_df, DEFAULT_CATEGORY_SUMMARY_PATH)
 
-        print(f"\nComplaint report saved to: {DEFAULT_OUTPUT_PATH}")
-        print(f"Complaint category summary saved to: {DEFAULT_CATEGORY_SUMMARY_PATH}")
+        logger.info("Complaint report saved to: %s", DEFAULT_OUTPUT_PATH)
+        logger.info(
+            "Complaint category summary saved to: %s",
+            DEFAULT_CATEGORY_SUMMARY_PATH,
+        )

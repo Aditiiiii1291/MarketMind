@@ -110,15 +110,15 @@ def validate_raw_columns(raw_df):
     ]
 
     if missing_columns or unexpected_columns:
-        print("Raw column validation failed.")
+        logger.warning("Raw column validation failed.")
         if missing_columns:
-            print(f"Missing columns: {missing_columns}")
+            logger.warning("Missing columns: %s", missing_columns)
         if unexpected_columns:
-            print(f"Unexpected columns: {unexpected_columns}")
-        print(f"Required columns: {REQUIRED_RAW_COLUMNS}")
+            logger.warning("Unexpected columns: %s", unexpected_columns)
+        logger.warning("Required columns: %s", REQUIRED_RAW_COLUMNS)
         return False
 
-    print("Raw column validation passed.")
+    logger.info("Raw column validation passed.")
     return True
 
 
@@ -168,7 +168,11 @@ def validate_converted_rows(converted_df):
 
     valid_df = pd.DataFrame(valid_rows, columns=MARKETMIND_COLUMNS)
 
-    print(f"Converted row validation complete: {len(valid_df)} valid, {invalid_count} invalid.")
+    logger.info(
+        "Converted row validation complete: %s valid, %s invalid.",
+        len(valid_df),
+        invalid_count,
+    )
     return valid_df, invalid_count
 
 
@@ -398,29 +402,29 @@ def import_rows(valid_df, database_path, source_name, source_path):
 
 
 def print_preview(args, input_path, database_path, raw_df, valid_df, invalid_count):
-    """Print the validation summary before an import or dry run."""
-    print("MarketMind external dataset ingestion")
-    print(f"Input CSV: {display_path(input_path)}")
-    print(f"Database: {display_path(database_path)}")
-    print(f"Source name: {args.source_name}")
-    print(f"Category: {args.category}")
-    print(f"Rows read: {len(raw_df)}")
-    print(f"Valid rows ready: {len(valid_df)}")
-    print(f"Invalid rows skipped: {invalid_count}")
-    print(f"Products ready: {count_ready_products(valid_df)}")
-    print(f"Reviews ready: {len(valid_df)}")
+    """Log the validation summary before an import or dry run."""
+    logger.info("MarketMind external dataset ingestion")
+    logger.info("Input CSV: %s", display_path(input_path))
+    logger.info("Database: %s", display_path(database_path))
+    logger.info("Source name: %s", args.source_name)
+    logger.info("Category: %s", args.category)
+    logger.info("Rows read: %s", len(raw_df))
+    logger.info("Valid rows ready: %s", len(valid_df))
+    logger.info("Invalid rows skipped: %s", invalid_count)
+    logger.info("Products ready: %s", count_ready_products(valid_df))
+    logger.info("Reviews ready: %s", len(valid_df))
 
 
 def print_import_summary(summary):
-    """Print the final database import results."""
+    """Log the final database import results."""
     source_status = "created" if summary["source_created"] else "reused"
 
-    print("Import summary")
-    print(f"Dataset source: {source_status} (source_id={summary['source_id']})")
-    print(f"Products inserted: {summary['products_inserted']}")
-    print(f"Products reused: {summary['products_reused']}")
-    print(f"Reviews inserted: {summary['reviews_inserted']}")
-    print(f"Duplicate reviews skipped: {summary['reviews_skipped_duplicates']}")
+    logger.info("Import summary")
+    logger.info("Dataset source: %s (source_id=%s)", source_status, summary["source_id"])
+    logger.info("Products inserted: %s", summary["products_inserted"])
+    logger.info("Products reused: %s", summary["products_reused"])
+    logger.info("Reviews inserted: %s", summary["reviews_inserted"])
+    logger.info("Duplicate reviews skipped: %s", summary["reviews_skipped_duplicates"])
 
 
 def main():
@@ -434,7 +438,6 @@ def main():
         raw_df = read_external_csv(input_path)
     except FileNotFoundError as error:
         logger.error(error)
-        print(error)
         return 1
 
     if not validate_raw_columns(raw_df):
@@ -446,7 +449,7 @@ def main():
     print_preview(args, input_path, database_path, raw_df, valid_df, invalid_count)
 
     if args.dry_run:
-        print("Dry run complete. No database changes were made.")
+        logger.info("Dry run complete. No database changes were made.")
         return 0
 
     summary = import_rows(valid_df, database_path, args.source_name, source_path)

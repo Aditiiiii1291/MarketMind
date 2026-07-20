@@ -62,7 +62,7 @@ def compare_products(df, product_queries):
         result = analyze_product_health(df, product_query)
 
         if "error" in result:
-            print(f"Warning: {result['error']}")
+            logger.warning("Product comparison skipped query: %s", result["error"])
             continue
 
         metrics = result["metrics"]
@@ -173,7 +173,7 @@ if __name__ == "__main__":
     product_queries = args.product
 
     if len(product_queries) < 2 or len(product_queries) > 5:
-        print("Please provide 2 to 5 products using repeated --product arguments.")
+        logger.error("Please provide 2 to 5 products using repeated --product arguments.")
     else:
         try:
             reviews_df = load_processed_data(DEFAULT_INPUT_PATH)
@@ -185,13 +185,11 @@ if __name__ == "__main__":
         insight = generate_comparison_insight(ranked_products)
 
         if ranked_products.empty:
-            print("No matching products found for comparison.")
+            logger.info("No matching products found for comparison.")
         else:
-            print("Ranked Product Comparison:")
-            print(ranked_products)
+            logger.info("Ranked Product Comparison:\n%s", ranked_products)
 
-            print("\nComparison Insight:")
-            print(insight)
+            logger.info("Comparison Insight: %s", insight)
 
             save_comparison_report(ranked_products, DEFAULT_OUTPUT_PATH)
-            print(f"\nProduct comparison report saved to: {DEFAULT_OUTPUT_PATH}")
+            logger.info("Product comparison report saved to: %s", DEFAULT_OUTPUT_PATH)
