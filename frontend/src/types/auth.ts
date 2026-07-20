@@ -10,6 +10,12 @@ export type LoginPayload = {
   password: string;
 };
 
+export type RegisterPayload = {
+  username: string;
+  email: string;
+  password: string;
+};
+
 export type TokenResponse = {
   access_token: string;
   token_type: "bearer";
@@ -21,7 +27,8 @@ export type AuthContextValue = {
   isInitializing: boolean;
   login: (payload: LoginPayload) => Promise<void>;
   logout: () => void;
-  refreshAuthState: () => Promise<void>;
+  refreshCurrentUser: () => Promise<void>;
+  register: (payload: RegisterPayload) => Promise<void>;
   token: string | null;
   user: User | null;
 };

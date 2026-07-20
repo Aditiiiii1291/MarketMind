@@ -1,14 +1,23 @@
 import {
   createContext,
-  ReactNode,
   useCallback,
   useEffect,
   useMemo,
   useState
 } from "react";
+import type { ReactNode } from "react";
 
-import { getCurrentUserRequest, loginRequest } from "../services/authService";
-import type { AuthContextValue, LoginPayload, User } from "../types/auth";
+import {
+  getCurrentUserRequest,
+  loginRequest,
+  registerRequest
+} from "../services/authService";
+import type {
+  AuthContextValue,
+  LoginPayload,
+  RegisterPayload,
+  User
+} from "../types/auth";
 import { clearStoredToken, getStoredToken, setStoredToken } from "../utils/tokenStorage";
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -28,7 +37,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(null);
   }, []);
 
-  const refreshAuthState = useCallback(async () => {
+  const refreshCurrentUser = useCallback(async () => {
     const storedToken = getStoredToken();
 
     if (!storedToken) {
@@ -41,8 +50,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const currentUser = await getCurrentUserRequest();
       setToken(storedToken);
       setUser(currentUser);
-    } catch {
+    } catch (error) {
       logout();
+      throw error;
     }
   }, [logout]);
 
@@ -50,13 +60,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const tokenResponse = await loginRequest(payload);
     setStoredToken(tokenResponse.access_token);
     setToken(tokenResponse.access_token);
-    const currentUser = await getCurrentUserRequest();
-    setUser(currentUser);
+    try {
+      const currentUser = await getCurrentUserRequest();
+      setUser(currentUser);
+    } catch (error) {
+      logout();
+      throw error;
+    }
+  }, [logout]);
+
+  const register = useCallback(async (payload: RegisterPayload) => {
+    await registerRequest(payload);
   }, []);
 
   useEffect(() => {
-    refreshAuthState().finally(() => setIsInitializing(false));
-  }, [refreshAuthState]);
+    refreshCurrentUser()
+      .catch(() => undefined)
+      .finally(() => setIsInitializing(false));
+  }, [refreshCurrentUser]);
+
+  useEffect(() => {
+    window.addEventListener("marketmind:auth-expired", logout);
+    return () => window.removeEventListener("marketmind:auth-expired", logout);
+  }, [logout]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -64,11 +90,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isInitializing,
       login,
       logout,
-      refreshAuthState,
+      refreshCurrentUser,
+      register,
       token,
       user
     }),
-    [isInitializing, login, logout, refreshAuthState, token, user]
+    [isInitializing, login, logout, refreshCurrentUser, register, token, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

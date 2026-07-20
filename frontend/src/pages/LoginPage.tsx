@@ -1,8 +1,10 @@
 import { FormEvent, useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 
+import { ErrorAlert } from "../components/ErrorAlert";
 import { Loading } from "../components/Loading";
 import { useAuth } from "../hooks/useAuth";
+import { getApiErrorMessage } from "../services/apiError";
 
 type LocationState = {
   from?: {
@@ -12,7 +14,7 @@ type LocationState = {
 
 export function LoginPage() {
   const { isAuthenticated, login } = useAuth();
-  const [usernameOrEmail, setUsernameOrEmail] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,13 +30,23 @@ export function LoginPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+
+    if (!email.includes("@")) {
+      setError("Enter a valid email address.");
+      return;
+    }
+    if (password.trim() === "") {
+      setError("Password is required.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      await login({ username_or_email: usernameOrEmail, password });
+      await login({ username_or_email: email.trim(), password });
       navigate(redirectTo, { replace: true });
-    } catch {
-      setError("Unable to sign in with those credentials.");
+    } catch (apiError) {
+      setError(getApiErrorMessage(apiError));
     } finally {
       setIsSubmitting(false);
     }
@@ -52,14 +64,14 @@ export function LoginPage() {
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label>
-            Username or email
+            Email
             <input
-              autoComplete="username"
-              name="username_or_email"
-              onChange={(event) => setUsernameOrEmail(event.target.value)}
+              autoComplete="email"
+              name="email"
+              onChange={(event) => setEmail(event.target.value)}
               required
-              type="text"
-              value={usernameOrEmail}
+              type="email"
+              value={email}
             />
           </label>
 
@@ -75,12 +87,16 @@ export function LoginPage() {
             />
           </label>
 
-          {error ? <p className="form-error">{error}</p> : null}
+          <ErrorAlert message={error} />
 
           <button className="button button--primary" disabled={isSubmitting} type="submit">
             {isSubmitting ? <Loading label="Signing in" /> : "Sign in"}
           </button>
         </form>
+
+        <p className="auth-switch">
+          New to MarketMind? <Link to="/register">Create an account</Link>
+        </p>
       </section>
     </main>
   );

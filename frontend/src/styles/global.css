@@ -268,6 +268,37 @@ a {
   font-size: 0.9rem;
 }
 
+.alert {
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.alert--error {
+  color: #7f1d1d;
+  background: #fde8e8;
+  border: 1px solid #f5b7b1;
+}
+
+.alert--success {
+  color: #14532d;
+  background: #e5f7ed;
+  border: 1px solid #a9dfbf;
+}
+
+.auth-switch {
+  margin: 0;
+  color: #53636d;
+  font-size: 0.92rem;
+  text-align: center;
+}
+
+.auth-switch a {
+  color: #0d766c;
+  font-weight: 800;
+}
+
 .profile-list {
   display: grid;
   gap: 0.75rem;
@@ -288,6 +319,10 @@ a {
 
 .profile-list dd {
   margin: 0;
+}
+
+.profile-refresh {
+  margin-top: 1rem;
 }
 
 .error-page__content {

@@ -9,6 +9,7 @@ import { ErrorPage } from "./pages/ErrorPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { RegisterPage } from "./pages/RegisterPage";
 import { UploadsPage } from "./pages/UploadsPage";
 import { useAuth } from "./hooks/useAuth";
 
@@ -26,6 +27,7 @@ export default function App() {
         element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />}
       />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
